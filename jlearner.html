@@ -1,0 +1,22 @@
+<html>
+  <head>
+    <title>JLearner</title>
+    <link rel="stylesheet" href="codemirror/lib/codemirror.css">
+    <script src="codemirror/lib/codemirror.js"></script>
+    <script src="codemirror/addon/edit/matchbrackets.js"></script>
+    <link rel="stylesheet" href="codemirror/addon/hint/show-hint.css">
+    <script src="codemirror/addon/hint/show-hint.js"></script>
+    <script src="codemirror/mode/clike/clike.js"></script>
+  </head>
+  <body>
+    <h1>JLearner</h1>
+    <p><textarea id="editor"></textarea></p>
+  <script>
+    var editor = CodeMirror.fromTextArea(document.getElementById('editor'), {
+      lineNumbers: true,
+      matchBrackets: true,
+      mode: 'text/x-java'
+    });
+  </script>
+  </body>
+</html>
