@@ -10,13 +10,30 @@
   </head>
   <body>
     <h1>JLearner</h1>
-    <p><textarea id="editor"></textarea></p>
+    <p><b>Declarations:</b></p>
+    <p><textarea id="declarations"></textarea></p>
+    <p><b>Expression:</b></p>
+    <p><textarea id="expression"></textarea></p>
+    <p><button value="Evaluate" onClick="evaluateExpression()">Evaluate</button></p>
+    <p><b>Results:</b></p>
+    <p><textarea id="results"></textarea></p>
   <script>
-    var editor = CodeMirror.fromTextArea(document.getElementById('editor'), {
+    var declarationsEditor = CodeMirror.fromTextArea(document.getElementById('declarations'), {
       lineNumbers: true,
       matchBrackets: true,
       mode: 'text/x-java'
     });
+    var expressionEditor = CodeMirror.fromTextArea(document.getElementById('expression'), {
+      lineNumbers: true,
+      matchBrackets: true,
+      mode: 'text/x-java'
+    });
+    expressionEditor.setSize("100%", "3em");
+    var resultsEditor = CodeMirror.fromTextArea(document.getElementById('results'), {
+      matchBrackets: true,
+      mode: 'text/x-java'
+    });
   </script>
+  <script src="jlearner.js"></script>
   </body>
 </html>
