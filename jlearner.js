@@ -186,5 +186,9 @@ function evaluateExpression() {
   parser.expect("EOF");
   let env = null;
   let v = e.eval(env);
-  resultsEditor.replaceRange("> " + exprText + "\r\n" + v + "\r\n", {line: resultsEditor.lastLine()});
+  resultsEditor.replaceRange(exprText + "\r\n", {line: resultsEditor.lastLine()});
+  let lastLine = resultsEditor.lastLine();
+  resultsEditor.replaceRange("==> " + v + "\r\n\r\n", {line: lastLine});
+  resultsEditor.markText({line: lastLine, ch: 0}, {line: lastLine}, {className: 'result'});
+  resultsEditor.scrollIntoView({line: lastLine});
 }

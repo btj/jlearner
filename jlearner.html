@@ -7,24 +7,27 @@
     <link rel="stylesheet" href="codemirror/addon/hint/show-hint.css">
     <script src="codemirror/addon/hint/show-hint.js"></script>
     <script src="codemirror/mode/clike/clike.js"></script>
+    <style>
+    .result { font-style: italic; color: blue }
+    </style>
   </head>
-  <body>
+  <body style="background: lightgray">
     <h1>JLearner</h1>
     <p><b>Declarations:</b></p>
     <p><textarea id="declarations"></textarea></p>
     <p><b>Expression:</b></p>
     <p><textarea id="expression"></textarea></p>
-    <p><button value="Evaluate" onClick="evaluateExpression()">Evaluate</button></p>
-    <p><b>Results:</b></p>
+    <p><button onClick="evaluateExpression()">Evaluate (Ctrl+Enter)</button></p>
+    <p><b>Results:</b> <button onClick="resultsEditor.setValue('')">Clear</button></p>
     <p><textarea id="results"></textarea></p>
   <script>
     var declarationsEditor = CodeMirror.fromTextArea(document.getElementById('declarations'), {
-      lineNumbers: true,
+      lineNumbers: false,
       matchBrackets: true,
       mode: 'text/x-java'
     });
     var expressionEditor = CodeMirror.fromTextArea(document.getElementById('expression'), {
-      lineNumbers: true,
+      lineNumbers: false,
       matchBrackets: true,
       mode: 'text/x-java'
     });
@@ -32,6 +35,9 @@
     var resultsEditor = CodeMirror.fromTextArea(document.getElementById('results'), {
       matchBrackets: true,
       mode: 'text/x-java'
+    });
+    expressionEditor.on('keydown', (editor, event) => {
+      if (event.keyCode == 13 && event.ctrlKey) evaluateExpression();
     });
   </script>
   <script src="jlearner.js"></script>
