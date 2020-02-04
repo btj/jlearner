@@ -388,4 +388,5 @@ function evaluateExpression() {
   resultsEditor.replaceRange("==> " + v + "\r\n\r\n", {line: lastLine});
   resultsEditor.markText({line: lastLine, ch: 0}, {line: lastLine}, {className: 'result'});
   resultsEditor.scrollIntoView({line: lastLine});
+  updateVariablesTable();
 }

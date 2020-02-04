@@ -8,11 +8,12 @@
     <script src="codemirror/addon/hint/show-hint.js"></script>
     <script src="codemirror/mode/clike/clike.js"></script>
     <style>
+    body {font-family: Arial, Helvetica, sans-serif}
     .result { font-style: italic; color: blue }
-    table {
+    table.border {
       border-collapse: collapse;
     }
-    table, th, td {
+    table.border (table, th, td) {
       border: 1px solid black;
     }
     #variables td { font-family: "Lucida Console", Monaco, monospace }
@@ -20,17 +21,58 @@
   </head>
   <body style="background: lightgray">
     <h1>JLearner</h1>
-    <p><b>Declarations:</b></p>
-    <p><textarea id="declarations"></textarea></p>
-    <p><b>Variables:</b></p>
-    <table id="variables"><tr><th>Type</th><th>Variable</th><th>Value</th></tr>
+    <table width="100%" style="table-layout: fixed"><tr>
+    <td width="50%" style="vertical-align: top">
+      <p><b>Declarations:</b></p>
+      <p><textarea id="declarations"></textarea></p>
+      <p><b>Statements:</b> <button onClick="executeStatements()">Execute (Ctrl+Enter)</button></p>
+      <p><textarea id="statements"></textarea></p>
+      <p><b>Expression:</b> <button onClick="evaluateExpression()">Evaluate (Ctrl+Enter)</button></p>
+      <p><textarea id="expression"></textarea></p>
+      <p><b>Results:</b> <button onClick="resultsEditor.setValue('')">Clear</button></p>
+      <p><textarea id="results"></textarea></p>
+    </td>
+    <td width="50%" style="vertical-align: top; position: relative">
+      <table id="machine">
+        <tr>
+          <td>
+            <table id="callstack" style="background-color: lightgreen; border: 2px solid black">
+              <tr><td colspan="2" style="text-align: center; font-family: monospace">main</td></tr>
+              <tr><td style="text-align: right; font-family: monospace"><span style="font-family: monospace; font-weight: bold">int</span> x</td><td style="background-color: white">50</td></tr>
+              <tr><td style="text-align: right; font-family: monospace">int y</td><td id="from" style="background-color: white">50</td></tr>
+              <tr><td colspan="2" style="text-align: center; border-top: 2px solid black">Main</td></tr>
+              <tr><td style="text-align: right; font-family: monospace">int x</td><td style="background-color: white">50</td></tr>
+              <tr><td style="text-align: right; font-family: monospace">int y</td><td style="background-color: white">50</td></tr>
+            </table>
+          </td>
+          <td>
+            <div id="heap">
+            <table id="to" style="background-color: #ffcccb; border: 2px solid black; border-radius: 5px">
+              <tr><td colspan="2" style="text-align: center"><span style="font-family: monospace"><span style="font-family: monospace; font-weight: bold">int</span>[]</span> (id=1) (length=4)</td></tr>
+              <tr><td style="text-align: right; font-family: monospace"><span style="font-family: monospace; font-weight: bold">int</span> [0]</td><td style="background-color: white">50</td></tr>
+              <tr><td style="text-align: right; font-family: monospace">int [1]</td><td style="background-color: white">50</td></tr>
+            </table>
+            </div>
+          </td>
+        </tr>
+      </table>
+      <svg id="arrows-svg" style="position: absolute; left: 0; top: 0" width="100%" height="100%">
+        <defs>
+          <!-- arrowhead marker definition -->
+          <marker id="arrowhead" viewBox="0 0 10 10" refX="10" refY="5"
+              markerWidth="6" markerHeight="6"
+              orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" />
+          </marker>
+        </defs>
+
+        <!-- Coordinate axes with a arrowhead in both direction -->
+        <line id="arrow" x1="0" y1="0" x2="200" y2="200" style="stroke:rgb(0,0,0);stroke-width:1"
+           marker-end="url(#arrowhead)" />
+      </svg>
+    </td>
+    </tr>
     </table>
-    <p><b>Statements:</b> <button onClick="executeStatements()">Execute (Ctrl+Enter)</button></p>
-    <p><textarea id="statements"></textarea></p>
-    <p><b>Expression:</b> <button onClick="evaluateExpression()">Evaluate (Ctrl+Enter)</button></p>
-    <p><textarea id="expression"></textarea></p>
-    <p><b>Results:</b> <button onClick="resultsEditor.setValue('')">Clear</button></p>
-    <p><textarea id="results"></textarea></p>
   <script>
     var declarationsEditor = CodeMirror.fromTextArea(document.getElementById('declarations'), {
       lineNumbers: false,
@@ -59,6 +101,22 @@
       if (event.keyCode == 13 && event.ctrlKey) evaluateExpression();
     });
   </script>
+      <script>
+      let machine = document.getElementById('arrows-svg');
+      let arrow = document.getElementById('arrow');
+      let from = document.getElementById('from');
+      let to = document.getElementById('to');
+      let fromRects = from.getClientRects();
+      console.log(fromRects);
+      let toRects = to.getClientRects();
+      console.log(toRects);
+      let machineRects = machine.getClientRects();
+      console.log(machineRects);
+      arrow.x1.baseVal.value = (fromRects[0].left + fromRects[0].right) / 2 - machineRects[0].left;
+      arrow.y1.baseVal.value = (fromRects[0].top + fromRects[0].bottom) / 2 - machineRects[0].top;
+      arrow.x2.baseVal.value = toRects[0].left - machineRects[0].left;
+      arrow.y2.baseVal.value = toRects[0].top - machineRects[0].top;
+      </script>
   <script src="jlearner.js"></script>
   </body>
 </html>
