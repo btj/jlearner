@@ -9,15 +9,26 @@
     <script src="codemirror/mode/clike/clike.js"></script>
     <style>
     .result { font-style: italic; color: blue }
+    table {
+      border-collapse: collapse;
+    }
+    table, th, td {
+      border: 1px solid black;
+    }
+    #variables td { font-family: "Lucida Console", Monaco, monospace }
     </style>
   </head>
   <body style="background: lightgray">
     <h1>JLearner</h1>
     <p><b>Declarations:</b></p>
     <p><textarea id="declarations"></textarea></p>
-    <p><b>Expression:</b></p>
+    <p><b>Variables:</b></p>
+    <table id="variables"><tr><th>Type</th><th>Variable</th><th>Value</th></tr>
+    </table>
+    <p><b>Statements:</b> <button onClick="executeStatements()">Execute (Ctrl+Enter)</button></p>
+    <p><textarea id="statements"></textarea></p>
+    <p><b>Expression:</b> <button onClick="evaluateExpression()">Evaluate (Ctrl+Enter)</button></p>
     <p><textarea id="expression"></textarea></p>
-    <p><button onClick="evaluateExpression()">Evaluate (Ctrl+Enter)</button></p>
     <p><b>Results:</b> <button onClick="resultsEditor.setValue('')">Clear</button></p>
     <p><textarea id="results"></textarea></p>
   <script>
@@ -26,6 +37,13 @@
       matchBrackets: true,
       mode: 'text/x-java'
     });
+    declarationsEditor.setSize("100%", "15em");
+    var statementsEditor = CodeMirror.fromTextArea(document.getElementById('statements'), {
+      lineNumbers: false,
+      matchBrackets: true,
+      mode: 'text/x-java'
+    });
+    statementsEditor.setSize("100%", "10em");
     var expressionEditor = CodeMirror.fromTextArea(document.getElementById('expression'), {
       lineNumbers: false,
       matchBrackets: true,
@@ -36,6 +54,7 @@
       matchBrackets: true,
       mode: 'text/x-java'
     });
+    resultsEditor.setSize("100%", "10em");
     expressionEditor.on('keydown', (editor, event) => {
       if (event.keyCode == 13 && event.ctrlKey) evaluateExpression();
     });

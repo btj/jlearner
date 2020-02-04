@@ -1,3 +1,10 @@
+function isDigit(c) { return '0' <= c && c <= '9'; }
+function isAlpha(c) { return 'A' <= c && c <= 'Z' || 'a' <= c && c <= 'z' || c == '_'; }
+
+function has(object, propertyName) { return Object.prototype.hasOwnProperty.call(object, propertyName); }
+
+keywords = {'int': true};
+
 class Scanner {
   constructor(text) {
     this.text = text;
@@ -7,21 +14,30 @@ class Scanner {
 
   eat() {
     this.pos++;
-    this.c = (this.pos == this.text.length ? "EOF" : this.text.charAt(this.pos));
+    this.c = (this.pos == this.text.length ? "<EOF>" : this.text.charAt(this.pos));
   }
 
   nextToken() {
     while (this.c == ' ' || this.c == '\t' || this.c == '\n' || this.c == '\r')
       this.eat();
     this.tokenStart = this.pos;
-    if ('0' <= this.c && this.c <= '9') {
+    if (isDigit(this.c)) {
       this.eat();
-      while ('0' <= this.c && this.c <= '9')
+      while (isDigit(this.c))
         this.eat();
       this.value = this.text.substring(this.tokenStart, this.pos);
       return "NUMBER";
     }
-    if (this.c == 'EOF')
+    if (isAlpha(this.c)) {
+      this.eat();
+      while (isAlpha(this.c) || isDigit(this.c))
+        this.eat();
+      this.value = this.text.substring(this.tokenStart, this.pos);
+      if (has(keywords, this.value))
+        return this.value;
+      return "IDENT";
+    }
+    if (this.c == '<EOF>')
       return 'EOF';
     let token = this.c;
     this.eat();
@@ -32,6 +48,10 @@ class Scanner {
 class ASTNode {
   constructor(loc) {
     this.loc = loc;
+  }
+  
+  executionError(msg) {
+    throw new ExecutionError(this.loc, msg);
   }
 }
 
@@ -47,7 +67,7 @@ class IntLiteral extends Expression {
     this.value = value;
   }
 
-  eval(env) {
+  evaluate(env) {
     return +this.value;
   }
 }
@@ -60,9 +80,9 @@ class BinaryOperatorExpression extends Expression {
     this.rightOperand = rightOperand;
   }
 
-  eval(env) {
-    let v1 = this.leftOperand.eval(env);
-    let v2 = this.rightOperand.eval(env);
+  evaluate(env) {
+    let v1 = this.leftOperand.evaluate(env);
+    let v2 = this.rightOperand.evaluate(env);
     switch (this.operator) {
       case '+': return (v1 + v2)|0;
       case '-': return (v1 - v2)|0;
@@ -70,6 +90,79 @@ class BinaryOperatorExpression extends Expression {
       case '/': return (v1 / v2)|0;
       default: throw new Error("Operator '" + this.operator + "' not supported.");
     }
+  }
+}
+
+class VariableExpression extends Expression {
+  constructor(loc, name) {
+    super(loc);
+    this.name = name;
+  }
+  
+  evaluate(env) {
+    if (!has(env, this.name))
+      this.executionError("No such variable: '" + this.lhs.name + "'");
+    return env[this.name].value;
+  }
+}
+
+class AssignmentExpression extends Expression {
+  constructor(loc, lhs, rhs) {
+    super(loc);
+    this.lhs = lhs;
+    this.rhs = rhs;
+  }
+  
+  evaluate(env) {
+    if (this.lhs instanceof VariableExpression) {
+      if (!has(env, this.lhs.name))
+        this.executionError("No such variable: '" + this.lhs.name + "'");
+      let v = this.rhs.evaluate(env);
+      env[this.lhs.name].value = v;
+      return v;
+    }
+    this.executionError("The left-hand side of an assignment must be a variable name");
+  }
+}
+
+class TypeExpression extends ASTNode {
+  constructor(loc, name) {
+    super(loc);
+    this.name = name;
+  }
+}
+
+class Statement extends ASTNode {
+  constructor(loc) {
+    super(loc);
+  }
+}
+
+class VariableDeclarationStatement extends Statement {
+  constructor(loc, type, nameLoc, name, init) {
+    super(loc);
+    this.type = type;
+    this.nameLoc = nameLoc;
+    this.name = name;
+    this.init = init;
+  }
+  
+  execute(env) {
+    if (has(env, this.name))
+      this.executionError("Variable '"+x+"' already exists in this scope.");
+    let v = this.init.evaluate(env);
+    env[this.name] = {declaration: this, value: v};
+  }
+}
+
+class ExpressionStatement extends Statement {
+  constructor(loc, expr) {
+    super(loc);
+    this.expr = expr;
+  }
+  
+  execute(env) {
+    this.expr.evaluate(env);
   }
 }
 
@@ -81,11 +174,23 @@ class Loc {
   }
 }
 
-class ParseError extends Error {
+class LocError extends Error {
   constructor(loc, msg) {
     super();
     this.loc = loc;
     this.msg = msg;
+  }
+}
+
+class ParseError extends LocError {
+  constructor(loc, msg) {
+    super(loc, msg);
+  }
+}
+
+class ExecutionError extends LocError {
+  constructor(loc, msg) {
+    super(loc, msg);
   }
 }
 
@@ -132,8 +237,16 @@ class Parser {
 
   parsePrimaryExpression() {
     this.pushStart();
-    this.expect("NUMBER");
-    return new IntLiteral(this.popLoc(), this.lastValue);
+    switch (this.token) {
+      case "NUMBER":
+        this.next();
+        return new IntLiteral(this.popLoc(), this.lastValue);
+      case "IDENT":
+        this.next();
+        return new VariableExpression(this.popLoc(), this.lastValue);
+      default:
+        this.parseError("Number or identifier expected");
+    }
   }
 
   parseMultiplicativeExpression() {
@@ -173,10 +286,95 @@ class Parser {
       }
     }
   }
+  
+  parseAssignmentExpression() {
+    this.pushStart();
+    let e = this.parseAdditiveExpression();
+    switch (this.token) {
+      case '=':
+        this.next();
+        let rightOperand = this.parseExpression();
+        return new AssignmentExpression(this.popLoc(), e, rightOperand);
+      default:
+        this.popLoc();
+        return e;
+    }
+  }
 
   parseExpression() {
-    return this.parseAdditiveExpression();
+    return this.parseAssignmentExpression();
   }
+  
+  tryParseType() {
+    this.pushStart();
+    switch (this.token) {
+      case "int":
+        this.next();
+        return new TypeExpression(this.popLoc(), this.lastValue);
+      default:
+        this.popLoc();
+        return null;
+    }
+  }
+  
+  parseStatement() {
+    this.pushStart();
+    let type = this.tryParseType();
+    if (type != null) {
+      this.pushStart();
+      let x = this.expect("IDENT");
+      let nameLoc = this.popLoc();
+      this.expect("=");
+      let e = this.parseExpression();
+      this.expect(";");
+      return new VariableDeclarationStatement(this.popLoc(), type, nameLoc, x, e);
+    }
+    let e = this.parseExpression();
+    this.expect(";");
+    return new ExpressionStatement(this.popLoc(), e);
+  }
+  
+  parseStatements(terminators) {
+    let statements = [];
+    while (!(this.token in terminators)) {
+      let stmt = this.parseStatement();
+      statements.push(stmt);
+    }
+    return statements;
+  }
+}
+
+let variablesTable = document.getElementById('variables');
+let mainEnv = {};
+
+function updateVariablesTable() {
+  let header = variablesTable.firstChild;
+  while (header.nextSibling != null)
+    variablesTable.removeChild(header.nextSibling);
+  for (let x in mainEnv) {
+    let binding = mainEnv[x];
+    let row = document.createElement('tr');
+    let typeElem = document.createElement('td');
+    typeElem.innerText = binding.declaration.type.name;
+    row.appendChild(typeElem);
+    let nameElem = document.createElement('td');
+    nameElem.innerText = x;
+    row.appendChild(nameElem);
+    let valueElem = document.createElement('td');
+    valueElem.innerText = binding.value;
+    row.appendChild(valueElem);
+    variablesTable.appendChild(row);
+  }
+}
+
+function executeStatements() {
+  let stmtsText = statementsEditor.getValue();
+  let parser = new Parser(statementsEditor, stmtsText);
+  let stmts = parser.parseStatements({'EOF': true});
+  for (let stmt of stmts) {
+    stmt.execute(mainEnv);
+  }
+  updateVariablesTable();
 }
 
 function evaluateExpression() {
@@ -184,8 +382,7 @@ function evaluateExpression() {
   let parser = new Parser(expressionEditor, exprText);
   let e = parser.parseExpression();
   parser.expect("EOF");
-  let env = null;
-  let v = e.eval(env);
+  let v = e.evaluate(mainEnv);
   resultsEditor.replaceRange(exprText + "\r\n", {line: resultsEditor.lastLine()});
   let lastLine = resultsEditor.lastLine();
   resultsEditor.replaceRange("==> " + v + "\r\n\r\n", {line: lastLine});
