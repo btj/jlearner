@@ -711,10 +711,19 @@ function createArrow(fromNode, toNode) {
   let fromY = (fromRect.top + fromRect.bottom) / 2 - svgRect.top;
   arrow.x1.baseVal.value = fromX;
   arrow.y1.baseVal.value = fromY;
-  arrow.x2.baseVal.value = toRect.left - svgRect.left;
-  arrow.y2.baseVal.value = toRect.top - svgRect.top;
+  let toX = toRect.left - svgRect.left;
+  let toY = toRect.top - svgRect.top;
+  arrow.x2.baseVal.value = toX;
+  arrow.y2.baseVal.value = toY;
   arrow.style = "stroke:rgb(0,0,0);stroke-width:1";
   arrow.setAttribute('marker-end', "url(#arrowhead)");
+  
+  let maxX = Math.max(fromX, toX);
+  if (svg.width.baseVal.value < maxX)
+    svg.width.baseVal.newValueSpecifiedUnits(1, maxX);
+  let maxY = Math.max(fromY, toY);
+  if (svg.height.baseVal.value < maxY)
+    svg.height.baseVal.newValueSpecifiedUnits(1, maxY);
   return arrow;
 }
 
