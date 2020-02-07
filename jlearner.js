@@ -100,6 +100,10 @@ class Expression extends ASTNode {
   constructor(loc) {
     super(loc);
   }
+  
+  evaluateBinding(env) {
+    this.executionError("This expression cannot appear on the left-hand side of an assignment");
+  }
 }
 
 class IntLiteral extends Expression {
@@ -140,6 +144,10 @@ class VariableExpression extends Expression {
     this.name = name;
   }
   
+  evaluateBinding(env) {
+    return env.lookup(this.loc, this.name);
+  }
+  
   evaluate(env) {
     return env.lookup(this.loc, this.name).value;
   }
@@ -153,13 +161,7 @@ class AssignmentExpression extends Expression {
   }
   
   evaluate(env) {
-    if (this.lhs instanceof VariableExpression) {
-      let binding = env.lookup(this.lhs.loc, this.lhs.name);
-      let v = this.rhs.evaluate(env);
-      binding.value = v;
-      return v;
-    }
-    this.executionError("The left-hand side of an assignment must be a variable name");
+    return this.lhs.evaluateBinding(env).value = this.rhs.evaluate(env);
   }
 }
 
@@ -212,6 +214,11 @@ function createHeapObjectDOMNode(object) {
   return node;
 }
 
+function updateHeapValues() {
+  for (let o of objectsShown)
+    o.updateFieldViews();
+}
+
 class FieldBinding {
   constructor(value) {
     this.value = value;
@@ -246,6 +253,13 @@ class JavaObject {
   hide() {
     this.domNode.parentNode.removeChild(this.domNode);
   }
+  
+  updateFieldViews() {
+    for (let field in this.fields) {
+      let binding = this.fields[field];
+      binding.valueCell.innerText = binding.value;
+    }
+  }
 }
 
 class NewExpression extends Expression {
@@ -258,6 +272,28 @@ class NewExpression extends Expression {
     if (!has(classes, this.className))
       this.executionError("No such class: " + this.className);
     return new JavaObject(classes[this.className]);
+  }
+}
+
+class SelectExpression extends Expression {
+  constructor(loc, target, selectorLoc, selector) {
+    super(loc);
+    this.target = target;
+    this.selectorLoc = selectorLoc;
+    this.selector = selector;
+  }
+  
+  evaluateBinding(env) {
+    let target = this.target.evaluate(env);
+    if (!(target instanceof JavaObject))
+      this.executionError("Cannot access field of " + target);
+    if (!has(target.fields, this.selector))
+      this.executionError("Target does not have a field named " + selector);
+    return target.fields[this.selector];
+  }
+  
+  evaluate(env) {
+    return this.evaluateBinding(env).value;
   }
 }
 
@@ -430,21 +466,46 @@ class Parser {
         this.expect('(');
         this.expect(')');
         return new NewExpression(this.popLoc(), className);
+      case "(":
+        this.next();
+        let e = this.parseExpression();
+        this.expect(")");
+        this.popLoc();
+        return e;
       default:
         this.parseError("Number or identifier expected");
+    }
+  }
+  
+  parsePostfixExpression() {
+    this.pushStart();
+    let e = this.parsePrimaryExpression();
+    for (;;) {
+      switch (this.token) {
+        case '.':
+          this.next();
+          this.pushStart();
+          let x = this.expect('IDENT');
+          let nameLoc = this.popLoc();
+          e = new SelectExpression(this.dupLoc(), e, nameLoc, x);
+          break;
+        default:
+          this.popLoc();
+          return e;
+      }
     }
   }
 
   parseMultiplicativeExpression() {
     this.pushStart();
-    let e = this.parsePrimaryExpression();
+    let e = this.parsePostfixExpression();
     for (;;) {
       switch (this.token) {
         case '*':
         case '/':
           let op = this.token;
           this.next();
-          let rightOperand = this.parsePrimaryExpression();
+          let rightOperand = this.parsePostfixExpression();
           e = new BinaryOperatorExpression(this.dupLoc(), e, op, rightOperand);
           break;
         default:
@@ -671,6 +732,7 @@ function updateCallStack() {
 
 function updateMachineView() {
   collectGarbage();
+  updateHeapValues();
   updateCallStack();
 }
 

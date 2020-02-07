@@ -92,7 +92,7 @@
       matchBrackets: true,
       mode: 'text/x-java'
     });
-    statementsEditor.setValue("Foo x = new Foo();");
+    statementsEditor.setValue("Foo x = new Foo(); x.x = x.x + 1;");
     statementsEditor.on('changes', () => clearErrorWidgets());
     statementsEditor.setSize("100%", "10em");
     var expressionEditor = CodeMirror.fromTextArea(document.getElementById('expression'), {
