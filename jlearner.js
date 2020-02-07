@@ -189,39 +189,7 @@ function collectGarbage() {
   objectsShown = newObjectsShown;
 }
 
-function createHeapObjectDOMNode(object) {
-  let heap = document.getElementById('heap');
-  let node = document.createElement('table');
-  heap.appendChild(node);
-  objectsShown.push(object);
-  node.className = 'object-table';
-  let titleRow = document.createElement('tr');
-  node.appendChild(titleRow);
-  let titleCell = document.createElement('td');
-  titleRow.appendChild(titleCell);
-  titleCell.colSpan = 2;
-  titleCell.className = 'object-title-td';
-  titleCell.innerText = object.toString();
-  for (let field in object.fields) {
-    let fieldRow = document.createElement('tr');
-    node.appendChild(fieldRow);
-    let nameCell = document.createElement('td');
-    fieldRow.appendChild(nameCell);
-    nameCell.className = 'field-name';
-    nameCell.innerText = field;
-    let valueCell = document.createElement('td');
-    fieldRow.appendChild(valueCell);
-    valueCell.className = 'field-value';
-    valueCell.innerText = object.fields[field].value;
-    object.fields[field].valueCell = valueCell;
-  }
-  return node;
-}
-
-function updateFieldArrows() {
-  for (let o of objectsShown)
-    o.updateFieldArrows();
-}
+let nextObjectY = 0;
 
 class FieldBinding {
   constructor(value) {
@@ -230,24 +198,7 @@ class FieldBinding {
   }
   
   setValue(value) {
-    if (this.arrow != null) {
-      this.arrow.parentNode.removeChild(this.arrow);
-      this.arrow = null;
-    }
-    this.value = value;
-    if (value instanceof JavaObject) {
-      this.arrow = createArrow(this.valueCell, value.domNode);
-      this.valueCell.innerText = "()";
-      this.valueCell.style.color = "white";
-    } else {
-      this.valueCell.innerText = value;
-      this.valueCell.style.color = "black";
-    }
-    return value;
-  }
-  
-  updateArrow() {
-    this.setValue(this.value);
+    return this.value = value;
   }
 }
 
@@ -258,7 +209,9 @@ class JavaObject {
     this.fields = {};
     for (let field in class_.fields)
       this.fields[field] = new FieldBinding(class_.fields[field].type.defaultValue());
-    this.domNode = createHeapObjectDOMNode(this);
+    this.left = 0;
+    this.top = nextObjectY;
+    nextObjectY += 100;
   }
   
   toString() {
@@ -274,17 +227,6 @@ class JavaObject {
           value.mark();
       }
     }
-  }
-  
-  hide() {
-    this.domNode.parentNode.removeChild(this.domNode);
-    for (let field in this.fields) // Remove arrows
-      this.fields[field].setValue(null);
-  }
-  
-  updateFieldArrows() {
-    for (let field in this.fields)
-      this.fields[field].updateArrow();
   }
 }
 
@@ -677,103 +619,20 @@ let callStack = [mainStackFrame]
 
 let callStackArrows = []
 
-function createArrow(fromNode, toNode) {
-  let svg = document.getElementById('arrows-svg');
-  let arrow = document.createElementNS('http://www.w3.org/2000/svg','line');
-  svg.appendChild(arrow);
-  let fromRect = fromNode.getClientRects()[0];
-  let toRect = toNode.getClientRects()[0];
-  let svgRect = svg.getClientRects()[0];
-  let fromX = (fromRect.left + fromRect.right) / 2 - svgRect.left;
-  let fromY = (fromRect.top + fromRect.bottom) / 2 - svgRect.top;
-  arrow.x1.baseVal.value = fromX;
-  arrow.y1.baseVal.value = fromY;
-  arrow.x2.baseVal.value = toRect.left - svgRect.left;
-  arrow.y2.baseVal.value = toRect.top - svgRect.top;
-  arrow.style = "stroke:rgb(0,0,0);stroke-width:1";
-  arrow.setAttribute('marker-end', "url(#arrowhead)");
-  return arrow;
-}
-
-function updateStackArrows() {
-  for (let arrow of callStackArrows) {
-    arrow.arrow.parentNode.removeChild(arrow.arrow);
-    arrow.arrow = createArrow(arrow.fromNode, arrow.toNode);
-  }
-}
-
-function updateArrows() {
-  updateStackArrows();
-  updateFieldArrows();
-}
-
-function updateCallStack() {
-  for (let arrow of callStackArrows)
-    arrow.arrow.parentNode.removeChild(arrow.arrow);
-  callStackArrows = [];
-  
-  let callStackTable = document.getElementById('callstack');
-  while (callStackTable.firstChild != null)
-    callStackTable.removeChild(callStackTable.firstChild);
-  for (let stackFrame of callStack) {
-    if (stackFrame !== callStack[0]) {
-      let titleRow = document.createElement('tr');
-      callStackTable.appendChild(titleRow);
-      let titleTd = document.createElement('td');
-      titleRow.appendChild(titleTd);
-      titleTd.colSpan = 2;
-      titleTd.className = "stackframe-title";
-      titleTd.innerText = stackFrame.title;
-    }
-    for (let binding of stackFrame.env.allBindings()) {
-      let row = document.createElement('tr');
-      callStackTable.appendChild(row);
-      let nameCell = document.createElement('td');
-      row.appendChild(nameCell);
-      nameCell.className = "stack-variable-name";
-      let typeSpan = document.createElement('span');
-      typeSpan.className = "keyword";
-      typeSpan.innerText = binding.declaration.type.name;
-      nameCell.innerText = " " + binding.declaration.name;
-      nameCell.insertBefore(typeSpan, nameCell.firstChild);
-      if (stackFrame === callStack[0]) {
-        let removeButton = document.createElement('button');
-        removeButton.innerText = "Remove";
-        removeButton.style.display = "none";
-        removeButton.onclick = () => {
-          delete toplevelScope.bindings[binding.declaration.name];
-          updateMachineView();
-        };
-        nameCell.insertBefore(removeButton, nameCell.firstChild);
-        nameCell.onmouseenter = () => {
-          removeButton.style.display = "inline";
-          setTimeout(updateArrows, 0);
-        };
-        nameCell.onmouseleave = () => {
-          removeButton.style.display = "none";
-          setTimeout(updateArrows, 0);
-        };
-      }
-      let valueCell = document.createElement('td');
-      row.appendChild(valueCell);
-      valueCell.className = "stack-value-td";
-      let valueDiv = document.createElement('div');
-      valueCell.appendChild(valueDiv);
-      valueDiv.className = "stack-value-div";
-      if (binding.value instanceof JavaObject) {
-        valueDiv.innerText = "()";
-        valueDiv.style.color = "white";
-        setTimeout(() => callStackArrows.push({arrow: createArrow(valueCell, binding.value.domNode), fromNode: valueCell, toNode: binding.value.domNode}), 0);
-      } else
-        valueDiv.innerText = binding.value;
-    }
-  }
-}
-
 function updateMachineView() {
   collectGarbage();
-  updateCallStack();
-  updateFieldArrows();
+  let machineCell = document.getElementById('machineCell');
+  let canvas = document.getElementById('machineCanvas');
+  canvas.width = machineCell.offsetWidth;
+  canvas.height = machineCell.offsetHeight;
+  let ctxt = canvas.getContext2D();
+  
+  let localNamesWidth = 20;
+  let localValuesWidth = 20;
+  for (let stackFrame of callStack) {
+    for (let binding of stackFrame.env.allBindings()) {
+      localNamesWidth = Math.max(localNamesWidth, ctxt.measureText(binding.declaration.name).width);
+      
 }
 
 function executeStatements() {
