@@ -11,7 +11,7 @@
     body {font-family: Arial, Helvetica, sans-serif}
     .result { font-style: italic; color: blue }
     #callstack { background-color: lightgreen; border: 2px solid black; border-collapse: collapse }
-    .stackframe-title { text-align: center; border-top: 2px solid black; font-family: monospace }
+    .stackframe-title { text-align: center; border-top: 2px solid black; font-family: monospace; padding: 2px }
     .stack-variable-name { text-align: right; font-family: monospace; padding: 2px 2px 2px 2px }
     .keyword { font-family: monospace; font-weight: bold }
     .stack-value-td { padding: 2px 2px 1.5px 2px }
@@ -41,21 +41,17 @@
         <tr style="vertical-align: top" >
           <td>
             <table id="callstack" style="background-color: lightgreen; border: 2px solid black; border-collapse: collapse">
-              <tr><td colspan="2" class="stackframe-title">main</td></tr>
-              <tr><td class="stack-variable-name"><span class="keyword">int</span> x</td><td class="stack-value-td"><div class="stack-value-div">50</div></td></tr>
-              <tr><td class="stack-variable-name"><span class="keyword">int</span> x</td><td class="stack-value-td"><div id="from" class="stack-value-div">50</div></td></tr>
-              <tr><td colspan="2" class="stackframe-title">main</td></tr>
-              <tr><td class="stack-variable-name"><span class="keyword">int</span> x</td><td class="stack-value-td"><div class="stack-value-div">50</div></td></tr>
-              <tr><td class="stack-variable-name"><span class="keyword">int</span> x</td><td class="stack-value-td"><div class="stack-value-div">50</div></td></tr>
             </table>
           </td>
           <td>
             <div id="heap">
+            <!--
             <table id="to" class="object-table">
               <tr><td colspan="2" class="object-title-td"><span class="code" ><span class="keyword">int</span>[]</span> (id=1) (length=4)</td></tr>
               <tr><td class="field-name"><span class="keyword">int</span> [0]</td><td class="field-value">50</td></tr>
               <tr><td class="field-name">int [1]</td><td class="field-value">50</td></tr>
             </table>
+            -->
             </div>
           </td>
         </tr>
@@ -70,9 +66,10 @@
           </marker>
         </defs>
 
-        <!-- Coordinate axes with a arrowhead in both direction -->
+        <!--
         <line id="arrow" x1="0" y1="0" x2="200" y2="200" style="stroke:rgb(0,0,0);stroke-width:1"
            marker-end="url(#arrowhead)" />
+        -->
       </svg>
     </td>
     </tr>
@@ -105,7 +102,7 @@
       if (event.keyCode == 13 && event.ctrlKey) evaluateExpression();
     });
   </script>
-      <script>
+      <!-- script>
       let machine = document.getElementById('arrows-svg');
       let arrow = document.getElementById('arrow');
       let from = document.getElementById('from');
@@ -120,7 +117,7 @@
       arrow.y1.baseVal.value = (fromRects[0].top + fromRects[0].bottom) / 2 - machineRects[0].top;
       arrow.x2.baseVal.value = toRects[0].left - machineRects[0].left;
       arrow.y2.baseVal.value = toRects[0].top - machineRects[0].top;
-      </script>
+      </script -->
   <script src="jlearner.js"></script>
   </body>
 </html>

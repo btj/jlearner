@@ -346,24 +346,54 @@ class Parser {
 
 let variablesTable = document.getElementById('variables');
 let mainEnv = {};
+let mainStackFrame = {title: "(toplevel)", env: mainEnv}
+let callStack = [mainStackFrame]
 
-function updateVariablesTable() {
-  let header = variablesTable.firstChild;
-  while (header.nextSibling != null)
-    variablesTable.removeChild(header.nextSibling);
-  for (let x in mainEnv) {
-    let binding = mainEnv[x];
-    let row = document.createElement('tr');
-    let typeElem = document.createElement('td');
-    typeElem.innerText = binding.declaration.type.name;
-    row.appendChild(typeElem);
-    let nameElem = document.createElement('td');
-    nameElem.innerText = x;
-    row.appendChild(nameElem);
-    let valueElem = document.createElement('td');
-    valueElem.innerText = binding.value;
-    row.appendChild(valueElem);
-    variablesTable.appendChild(row);
+function updateCallStack() {
+  let callStackTable = document.getElementById('callstack');
+  while (callStackTable.firstChild != null)
+    callStackTable.removeChild(callStackTable.firstChild);
+  for (let stackFrame of callStack) {
+    if (stackFrame !== callStack[0]) {
+      let titleRow = document.createElement('tr');
+      callStackTable.appendChild(titleRow);
+      let titleTd = document.createElement('td');
+      titleRow.appendChild(titleTd);
+      titleTd.colSpan = 2;
+      titleTd.className = "stackframe-title";
+      titleTd.innerText = stackFrame.title;
+    }
+    for (let x in stackFrame.env) {
+      let row = document.createElement('tr');
+      callStackTable.appendChild(row);
+      let nameCell = document.createElement('td');
+      row.appendChild(nameCell);
+      nameCell.className = "stack-variable-name";
+      nameCell.innerText = stackFrame.env[x].declaration.name;
+      if (stackFrame === callStack[0]) {
+        let removeButton = document.createElement('button');
+        removeButton.innerText = "Remove";
+        removeButton.style.display = "none";
+        removeButton.onclick = () => {
+          delete stackFrame.env[x];
+          callStackTable.removeChild(row);
+        };
+        nameCell.insertBefore(removeButton, nameCell.firstChild);
+        nameCell.onmouseenter = () => {
+          removeButton.style.display = "inline";
+        };
+        nameCell.onmouseleave = () => {
+          removeButton.style.display = "none";
+        };
+      }
+      let valueCell = document.createElement('td');
+      row.appendChild(valueCell);
+      valueCell.className = "stack-value-td";
+      let valueDiv = document.createElement('div');
+      valueCell.appendChild(valueDiv);
+      valueDiv.className = "stack-value-div";
+      valueDiv.innerText = stackFrame.env[x].value;
+    }
   }
 }
 
@@ -374,7 +404,7 @@ function executeStatements() {
   for (let stmt of stmts) {
     stmt.execute(mainEnv);
   }
-  updateVariablesTable();
+  updateCallStack();
 }
 
 function evaluateExpression() {
@@ -388,5 +418,5 @@ function evaluateExpression() {
   resultsEditor.replaceRange("==> " + v + "\r\n\r\n", {line: lastLine});
   resultsEditor.markText({line: lastLine, ch: 0}, {line: lastLine}, {className: 'result'});
   resultsEditor.scrollIntoView({line: lastLine});
-  updateVariablesTable();
+  updateCallStack();
 }
