@@ -36,11 +36,11 @@
       <table id="machine">
         <tr>
           <td>
-            <table id="callstack" style="background-color: lightgreen; border: 2px solid black">
-              <tr><td colspan="2" style="text-align: center; font-family: monospace">main</td></tr>
-              <tr><td style="text-align: right; font-family: monospace"><span style="font-family: monospace; font-weight: bold">int</span> x</td><td style="background-color: white">50</td></tr>
-              <tr><td style="text-align: right; font-family: monospace">int y</td><td id="from" style="background-color: white">50</td></tr>
-              <tr><td colspan="2" style="text-align: center; border-top: 2px solid black">Main</td></tr>
+            <table id="callstack" style="background-color: lightgreen; border: 2px solid black; border-collapse: collapse">
+              <tr style="padding: 10px 10px 10px 10px"><td colspan="2" style="text-align: center; border-top: 2px solid black; font-family: monospace">main</td></tr>
+              <tr><td style="text-align: right; font-family: monospace; padding: 2px 2px 2px 2px"><span style="font-family: monospace; font-weight: bold">int</span> x</td><td style="padding: 2px 2px 1.5px 2px"><div style="padding: 1px 1px 1px 1px; background-color: white">50</div></td></tr>
+              <tr><td style="text-align: right; font-family: monospace; padding: 2px 2px 2px 2px">int y</td><td id="from" style="padding: 1px 2px 2px 2px"><div style="padding: 1px 1px 1px 1px; background-color: white">50</div></td></tr>
+              <tr><td colspan="2" style="text-align: center; border-top: 2px solid black; font-family: monospace">foo</td></tr>
               <tr><td style="text-align: right; font-family: monospace">int x</td><td style="background-color: white">50</td></tr>
               <tr><td style="text-align: right; font-family: monospace">int y</td><td style="background-color: white">50</td></tr>
             </table>
