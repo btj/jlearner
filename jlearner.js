@@ -149,7 +149,7 @@ class AssignmentExpression extends Expression {
   
   evaluate(env) {
     if (this.lhs instanceof VariableExpression) {
-      let binding = env.lookup(this.loc, this.lhs.name);
+      let binding = env.lookup(this.lhs.loc, this.lhs.name);
       let v = this.rhs.evaluate(env);
       binding.value = v;
       return v;
@@ -182,7 +182,7 @@ class VariableDeclarationStatement extends Statement {
   
   execute(env) {
     if (env.tryLookup(this.name) != null)
-      this.executionError("Variable '"+x+"' already exists in this scope.");
+      throw new ExecutionError(this.nameLoc, "Variable '"+this.name+"' already exists in this scope.");
     let v = this.init.evaluate(env);
     env.bindings[this.name] = new LocalBinding(this, v);
   }
@@ -264,7 +264,7 @@ class Parser {
   }
 
   tokenLoc() {
-    return new Loc(this.doc, this.scanner.tokenStart, this.lastPos);
+    return new Loc(this.doc, this.scanner.tokenStart, this.scanner.pos);
   }
 
   parseError(msg) {
@@ -279,7 +279,7 @@ class Parser {
 
   expect(token) {
     if (this.token != token)
-      this.parseError(token + " expected");
+      this.parseError((token == 'EOF' ? "end of input " : token) + " expected");
     this.next();
     return this.lastValue;
   }
@@ -451,25 +451,92 @@ function updateCallStack() {
 }
 
 function executeStatements() {
-  let stmtsText = statementsEditor.getValue();
-  let parser = new Parser(statementsEditor, stmtsText);
-  let stmts = parser.parseStatements({'EOF': true});
-  for (let stmt of stmts) {
-    stmt.execute(toplevelScope);
-  }
+  handleError(() => {
+    let stmtsText = statementsEditor.getValue();
+    let parser = new Parser(statementsEditor, stmtsText);
+    let stmts = parser.parseStatements({'EOF': true});
+    for (let stmt of stmts) {
+      stmt.execute(toplevelScope);
+    }
+  });
   updateCallStack();
 }
 
+function getTextCoordsFromOffset(text, offset) {
+  let line = 0;
+  let lineStart = 0;
+  for (;;) {
+    let nextBreak = text.indexOf('\n', lineStart);
+    if (nextBreak < 0 || offset < nextBreak)
+      return {line, ch: offset - lineStart};
+    line++;
+    lineStart = nextBreak + 1;
+  }
+}
+
+let errorWidgets = [];
+
+function clearErrorWidgets() {
+  for (let widget of errorWidgets)
+    widget.clear();
+  errorWidgets = [];
+}
+
+function addErrorWidget(editor, line, msg) {
+  var widget = document.createElement("div");
+  var icon = widget.appendChild(document.createElement("span"));
+  icon.innerHTML = "!";
+  icon.className = "lint-error-icon";
+  widget.appendChild(document.createTextNode(msg));
+  widget.className = "lint-error";
+  errorWidgets.push(editor.addLineWidget(line, widget, {coverGutter: false, noHScroll: true}));
+}
+
+function handleError(body) {
+  clearErrorWidgets();
+  try {
+    body();
+  } catch (ex) {
+    if (ex instanceof LocError) {
+      let editor = ex.loc.doc;
+      let text = editor.getValue();
+      let start = getTextCoordsFromOffset(text, ex.loc.start);
+      let end = getTextCoordsFromOffset(text, ex.loc.end);
+      if (ex.loc.start == text.length) { // error at EOF
+        if (!(text.length >= 2 && text.charAt(text.length - 1) == ' ' && text.charAt(text.length - 2) == ' ')) {
+          if (text.charAt(text.length - 1) == ' ')
+            editor.replaceRange(' ', start);
+          else {
+            editor.replaceRange('  ', start);
+            start.ch++;
+          }
+        } else {
+          start.ch--;
+        }
+        errorWidgets.push(editor.markText(start, {line: editor.lastLine()}, {className: "syntax-error"}));
+        addErrorWidget(editor, editor.lastLine(), ex.msg);
+    } else {
+        errorWidgets.push(editor.markText(start, end, {className: "syntax-error"}));
+        addErrorWidget(editor, start.line, ex.msg);
+      }
+    } else {
+      alert(ex);
+    }
+  }
+}
+
 function evaluateExpression() {
-  let exprText = expressionEditor.getValue();
-  let parser = new Parser(expressionEditor, exprText);
-  let e = parser.parseExpression();
-  parser.expect("EOF");
-  let v = e.evaluate(toplevelScope);
-  resultsEditor.replaceRange(exprText + "\r\n", {line: resultsEditor.lastLine()});
-  let lastLine = resultsEditor.lastLine();
-  resultsEditor.replaceRange("==> " + v + "\r\n\r\n", {line: lastLine});
-  resultsEditor.markText({line: lastLine, ch: 0}, {line: lastLine}, {className: 'result'});
-  resultsEditor.scrollIntoView({line: lastLine});
+  handleError(() => {
+    let exprText = expressionEditor.getValue();
+    let parser = new Parser(expressionEditor, exprText);
+    let e = parser.parseExpression();
+    parser.expect("EOF");
+    let v = e.evaluate(toplevelScope);
+    resultsEditor.replaceRange(exprText + "\r\n", {line: resultsEditor.lastLine()});
+    let lastLine = resultsEditor.lastLine();
+    resultsEditor.replaceRange("==> " + v + "\r\n\r\n", {line: lastLine});
+    resultsEditor.markText({line: lastLine, ch: 0}, {line: lastLine}, {className: 'result'});
+    resultsEditor.scrollIntoView({line: lastLine});
+  });
   updateCallStack();
 }
