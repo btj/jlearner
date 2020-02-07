@@ -189,10 +189,33 @@ function collectGarbage() {
   objectsShown = newObjectsShown;
 }
 
+let nextObjectY = 0;
+
 function createHeapObjectDOMNode(object) {
   let heap = document.getElementById('heap');
   let node = document.createElement('table');
   heap.appendChild(node);
+  node.className = 'object-table';
+  node.style.left = "0px";
+  node.style.top = nextObjectY + "px";
+  node.onmousedown = event0 => {
+    event0.preventDefault();
+    let left0 = node.offsetLeft;
+    let top0 = node.offsetTop;
+    let moveListener = event => {
+      event.preventDefault();
+      node.style.left = (left0 + event.x - event0.x) + "px";
+      node.style.top = (top0 + event.y - event0.y) + "px";
+      updateArrows();
+    };
+    let upListener = event => {
+      document.removeEventListener('mousemove', moveListener);
+      document.removeEventListener('mouseup', upListener);
+    };
+    document.addEventListener('mousemove', moveListener);
+    document.addEventListener('mouseup', upListener);
+  };
+  
   objectsShown.push(object);
   node.className = 'object-table';
   let titleRow = document.createElement('tr');

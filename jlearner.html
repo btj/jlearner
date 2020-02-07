@@ -16,7 +16,7 @@
     .keyword { font-family: monospace; font-weight: bold }
     .stack-value-td { padding: 2px 2px 1.5px 2px }
     .stack-value-div { padding: 1px 1px 1px 1px; background-color: white }
-    .object-table { background-color: #ffcccb; border: 2px solid black; border-radius: 5px }
+    .object-table { background-color: #ffcccb; border: 2px solid black; border-radius: 5px; position: absolute }
     .object-title-td { text-align: center; font-size: small }
     .code { font-family: monospace; font-size: medium }
     .field-name { text-align: right; font-family: monospace }
@@ -40,15 +40,10 @@
       <p><b>Results:</b> <button onClick="resultsEditor.setValue('')">Clear</button></p>
       <p><textarea id="results"></textarea></p>
     </td>
-    <td width="50%" style="vertical-align: top; position: relative">
-      <table id="machine" cellpadding="10px" >
-        <tr style="vertical-align: top" >
-          <td>
+    <td id="machine" style="position: relative; display: flex; flex-direction: row; align-items: stretch" height="100%">
             <table id="callstack" style="background-color: lightgreen; border: 2px solid black; border-collapse: collapse">
             </table>
-          </td>
-          <td>
-            <div id="heap">
+            <div id="heap" style="position: relative; flex-grow: 1">
             <!--
             <table id="to" class="object-table">
               <tr><td colspan="2" class="object-title-td"><span class="code" ><span class="keyword">int</span>[]</span> (id=1) (length=4)</td></tr>
@@ -57,9 +52,6 @@
             </table>
             -->
             </div>
-          </td>
-        </tr>
-      </table>
       <svg id="arrows-svg" style="position: absolute; left: 0; top: 0; pointer-events: none" width="100%" height="100%">
         <defs>
           <!-- arrowhead marker definition -->
