@@ -369,7 +369,11 @@ function updateCallStack() {
       let nameCell = document.createElement('td');
       row.appendChild(nameCell);
       nameCell.className = "stack-variable-name";
-      nameCell.innerText = stackFrame.env[x].declaration.name;
+      let typeSpan = document.createElement('span');
+      typeSpan.className = "keyword";
+      typeSpan.innerText = stackFrame.env[x].declaration.type.name;
+      nameCell.innerText = " " + stackFrame.env[x].declaration.name;
+      nameCell.insertBefore(typeSpan, nameCell.firstChild);
       if (stackFrame === callStack[0]) {
         let removeButton = document.createElement('button');
         removeButton.innerText = "Remove";
