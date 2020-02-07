@@ -3,7 +3,11 @@ function isAlpha(c) { return 'A' <= c && c <= 'Z' || 'a' <= c && c <= 'z' || c =
 
 function has(object, propertyName) { return Object.prototype.hasOwnProperty.call(object, propertyName); }
 
-keywords = {'int': true};
+keywordsList = ['int', 'class', 'new'];
+keywords = {};
+
+for (let keyword of keywordsList)
+  keywords[keyword] = true;
 
 class Scanner {
   constructor(text) {
@@ -29,13 +33,14 @@ class Scanner {
       return "NUMBER";
     }
     if (isAlpha(this.c)) {
+      let c0 = this.c;
       this.eat();
       while (isAlpha(this.c) || isDigit(this.c))
         this.eat();
       this.value = this.text.substring(this.tokenStart, this.pos);
       if (has(keywords, this.value))
         return this.value;
-      return "IDENT";
+      return 'A' <= c0 && c0 <= 'Z' ? "TYPE_IDENT" : "IDENT";
     }
     if (this.c == '<EOF>')
       return 'EOF';
@@ -158,10 +163,115 @@ class AssignmentExpression extends Expression {
   }
 }
 
+let objectsCount = 0;
+let objectsShown = [];
+
+function collectGarbage() {
+  for (let o of objectsShown)
+    o.marked = false;
+  for (let stackFrame of callStack)
+    for (let binding of stackFrame.env.allBindings())
+      if (binding.value instanceof JavaObject)
+        binding.value.mark();
+  let newObjectsShown = [];
+  for (let o of objectsShown) {
+    if (o.marked)
+      newObjectsShown.push(o);
+    else
+      o.hide();
+  }
+  objectsShown = newObjectsShown;
+}
+
+function createHeapObjectDOMNode(object) {
+  let heap = document.getElementById('heap');
+  let node = document.createElement('table');
+  heap.appendChild(node);
+  objectsShown.push(object);
+  node.className = 'object-table';
+  let titleRow = document.createElement('tr');
+  node.appendChild(titleRow);
+  let titleCell = document.createElement('td');
+  titleRow.appendChild(titleCell);
+  titleCell.colSpan = 2;
+  titleCell.className = 'object-title-td';
+  titleCell.innerText = object.toString();
+  for (let field in object.fields) {
+    let fieldRow = document.createElement('tr');
+    node.appendChild(fieldRow);
+    let nameCell = document.createElement('td');
+    fieldRow.appendChild(nameCell);
+    nameCell.className = 'field-name';
+    nameCell.innerText = field;
+    let valueCell = document.createElement('td');
+    fieldRow.appendChild(valueCell);
+    valueCell.className = 'field-value';
+    valueCell.innerText = object.fields[field].value;
+    object.fields[field].valueCell = valueCell;
+  }
+  return node;
+}
+
+class FieldBinding {
+  constructor(value) {
+    this.value = value;
+  }
+}
+
+class JavaObject {
+  constructor(class_) {
+    this.id = ++objectsCount;
+    this.class_ = class_;
+    this.fields = {};
+    for (let field in class_.fields)
+      this.fields[field] = new FieldBinding(class_.fields[field].type.defaultValue());
+    this.domNode = createHeapObjectDOMNode(this);
+  }
+  
+  toString() {
+    return this.class_.name + " (id=" + this.id + ")";
+  }
+  
+  mark() {
+    if (!this.marked) {
+      this.marked = true;
+      for (let field in this.fields) {
+        let value = this.fields[field].value;
+        if (value instanceof JavaObject)
+          value.mark();
+      }
+    }
+  }
+  
+  hide() {
+    this.domNode.parentNode.removeChild(this.domNode);
+  }
+}
+
+class NewExpression extends Expression {
+  constructor(loc, className) {
+    super(loc);
+    this.className = className;
+  }
+  
+  evaluate(env) {
+    if (!has(classes, this.className))
+      this.executionError("No such class: " + this.className);
+    return new JavaObject(classes[this.className]);
+  }
+}
+
 class TypeExpression extends ASTNode {
   constructor(loc, name) {
     super(loc);
     this.name = name;
+  }
+  
+  defaultValue() {
+    switch (this.name) {
+      case 'int': return 0;
+      default: return null;
+    }
   }
 }
 
@@ -212,6 +322,27 @@ class MethodDeclaration extends Declaration {
     this.name = name;
     this.parameterDeclarations = parameterDeclarations;
     this.bodyBlock = bodyBlock;
+  }
+}
+
+class FieldDeclaration extends Declaration {
+  constructor(loc, type, name) {
+    super(loc);
+    this.type = type;
+    this.name = name;
+  }
+}
+
+class Class extends Declaration {
+  constructor(loc, name, fields) {
+    super(loc);
+    this.name = name;
+    this.fields = {};
+    for (let field of fields) {
+      if (has(this.fields, field.name))
+        field.executionError("A field with this name already exists in this class");
+      this.fields[field.name] = field;
+    }
   }
 }
 
@@ -293,6 +424,12 @@ class Parser {
       case "IDENT":
         this.next();
         return new VariableExpression(this.popLoc(), this.lastValue);
+      case "new":
+        this.next();
+        let className = this.expect('TYPE_IDENT');
+        this.expect('(');
+        this.expect(')');
+        return new NewExpression(this.popLoc(), className);
       default:
         this.parseError("Number or identifier expected");
     }
@@ -360,10 +497,20 @@ class Parser {
       case "int":
         this.next();
         return new TypeExpression(this.popLoc(), this.lastValue);
+      case "TYPE_IDENT":
+        this.next();
+        return new TypeExpression(this.popLoc(), this.lastValue);
       default:
         this.popLoc();
         return null;
     }
+  }
+  
+  parseType() {
+    let type = this.tryParseType();
+    if (type == null)
+      this.parseError("Type expected");
+    return type;
   }
   
   parseStatement() {
@@ -391,6 +538,49 @@ class Parser {
     }
     return statements;
   }
+  
+  parseClassMemberDeclaration() {
+    this.pushStart();
+    let type = this.parseType();
+    let x = this.expect('IDENT');
+    this.expect(';');
+    return new FieldDeclaration(this.popLoc(), type, x);
+  }
+  
+  parseDeclaration() {
+    this.pushStart();
+    switch (this.token) {
+      case 'class':
+        this.next();
+        let x = this.expect('TYPE_IDENT');
+        this.expect('{');
+        let fields = [];
+        while (this.token != '}')
+          fields.push(this.parseClassMemberDeclaration());
+        this.expect('}');
+        return new Class(this.popLoc(), x, fields);
+      default:
+        this.parseError("Keyword 'class' expected");
+    }
+  }
+  
+  parseDeclarations() {
+    let declarations = [];
+    while (this.token != 'EOF')
+      declarations.push(this.parseDeclaration());
+    return declarations;
+  }
+}
+
+let classes;
+
+function checkDeclarations(declarations) {
+  classes = {};
+  for (let declaration of declarations) {
+    if (has(classes, declaration.name))
+      throw new LocError(declaration.loc, "A class with the same name already exists");
+    classes[declaration.name] = declaration;
+  }
 }
 
 let variablesTable = document.getElementById('variables');
@@ -398,7 +588,31 @@ let toplevelScope = new Scope(null);
 let mainStackFrame = {title: "(toplevel)", env: toplevelScope}
 let callStack = [mainStackFrame]
 
+let callStackArrows = []
+
+function createArrow(fromNode, toNode) {
+  let svg = document.getElementById('arrows-svg');
+  let arrow = document.createElementNS('http://www.w3.org/2000/svg','line');
+  svg.appendChild(arrow);
+  let fromRect = fromNode.getClientRects()[0];
+  let toRect = toNode.getClientRects()[0];
+  let svgRect = svg.getClientRects()[0];
+  let fromX = (fromRect.left + fromRect.right) / 2 - svgRect.left;
+  let fromY = (fromRect.top + fromRect.bottom) / 2 - svgRect.top;
+  arrow.x1.baseVal.value = fromX;
+  arrow.y1.baseVal.value = fromY;
+  arrow.x2.baseVal.value = toRect.left - svgRect.left;
+  arrow.y2.baseVal.value = toRect.top - svgRect.top;
+  arrow.style = "stroke:rgb(0,0,0);stroke-width:1";
+  arrow.setAttribute('marker-end', "url(#arrowhead)");
+  return arrow;
+}
+
 function updateCallStack() {
+  for (let arrow of callStackArrows)
+    arrow.parentNode.removeChild(arrow);
+  callStackArrows = [];
+  
   let callStackTable = document.getElementById('callstack');
   while (callStackTable.firstChild != null)
     callStackTable.removeChild(callStackTable.firstChild);
@@ -429,7 +643,7 @@ function updateCallStack() {
         removeButton.style.display = "none";
         removeButton.onclick = () => {
           delete toplevelScope.bindings[binding.declaration.name];
-          callStackTable.removeChild(row);
+          updateMachineView();
         };
         nameCell.insertBefore(removeButton, nameCell.firstChild);
         nameCell.onmouseenter = () => {
@@ -445,13 +659,24 @@ function updateCallStack() {
       let valueDiv = document.createElement('div');
       valueCell.appendChild(valueDiv);
       valueDiv.className = "stack-value-div";
-      valueDiv.innerText = binding.value;
+      if (binding.value instanceof JavaObject) {
+        valueDiv.innerText = "()";
+        valueDiv.style.color = "white";
+        setTimeout(() => callStackArrows.push(createArrow(valueCell, binding.value.domNode)), 0);
+      } else
+        valueDiv.innerText = binding.value;
     }
   }
 }
 
+function updateMachineView() {
+  collectGarbage();
+  updateCallStack();
+}
+
 function executeStatements() {
   handleError(() => {
+    parseDeclarations();
     let stmtsText = statementsEditor.getValue();
     let parser = new Parser(statementsEditor, stmtsText);
     let stmts = parser.parseStatements({'EOF': true});
@@ -459,7 +684,7 @@ function executeStatements() {
       stmt.execute(toplevelScope);
     }
   });
-  updateCallStack();
+  updateMachineView();
 }
 
 function getTextCoordsFromOffset(text, offset) {
@@ -525,8 +750,16 @@ function handleError(body) {
   }
 }
 
+function parseDeclarations() {
+  let text = declarationsEditor.getValue();
+  let parser = new Parser(declarationsEditor, text);
+  let decls = parser.parseDeclarations();
+  checkDeclarations(decls);
+}
+
 function evaluateExpression() {
   handleError(() => {
+    parseDeclarations();
     let exprText = expressionEditor.getValue();
     let parser = new Parser(expressionEditor, exprText);
     let e = parser.parseExpression();
@@ -538,5 +771,5 @@ function evaluateExpression() {
     resultsEditor.markText({line: lastLine, ch: 0}, {line: lastLine}, {className: 'result'});
     resultsEditor.scrollIntoView({line: lastLine});
   });
-  updateCallStack();
+  updateMachineView();
 }
