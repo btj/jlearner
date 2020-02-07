@@ -55,6 +55,10 @@ class LocalBinding {
     this.declaration = declaration;
     this.value = value;
   }
+  
+  setValue(value) {
+    return this.value = value;
+  }
 }
 
 class Scope {
@@ -161,7 +165,7 @@ class AssignmentExpression extends Expression {
   }
   
   evaluate(env) {
-    return this.lhs.evaluateBinding(env).value = this.rhs.evaluate(env);
+    return this.lhs.evaluateBinding(env).setValue(this.rhs.evaluate(env));
   }
 }
 
@@ -214,14 +218,36 @@ function createHeapObjectDOMNode(object) {
   return node;
 }
 
-function updateHeapValues() {
+function updateFieldArrows() {
   for (let o of objectsShown)
-    o.updateFieldViews();
+    o.updateFieldArrows();
 }
 
 class FieldBinding {
   constructor(value) {
     this.value = value;
+    this.arrow = null;
+  }
+  
+  setValue(value) {
+    if (this.arrow != null) {
+      this.arrow.parentNode.removeChild(this.arrow);
+      this.arrow = null;
+    }
+    this.value = value;
+    if (value instanceof JavaObject) {
+      this.arrow = createArrow(this.valueCell, value.domNode);
+      this.valueCell.innerText = "()";
+      this.valueCell.style.color = "white";
+    } else {
+      this.valueCell.innerText = value;
+      this.valueCell.style.color = "black";
+    }
+    return value;
+  }
+  
+  updateArrow() {
+    this.setValue(this.value);
   }
 }
 
@@ -252,13 +278,13 @@ class JavaObject {
   
   hide() {
     this.domNode.parentNode.removeChild(this.domNode);
+    for (let field in this.fields) // Remove arrows
+      this.fields[field].setValue(null);
   }
   
-  updateFieldViews() {
-    for (let field in this.fields) {
-      let binding = this.fields[field];
-      binding.valueCell.innerText = binding.value;
-    }
+  updateFieldArrows() {
+    for (let field in this.fields)
+      this.fields[field].updateArrow();
   }
 }
 
@@ -669,9 +695,21 @@ function createArrow(fromNode, toNode) {
   return arrow;
 }
 
+function updateStackArrows() {
+  for (let arrow of callStackArrows) {
+    arrow.arrow.parentNode.removeChild(arrow.arrow);
+    arrow.arrow = createArrow(arrow.fromNode, arrow.toNode);
+  }
+}
+
+function updateArrows() {
+  updateStackArrows();
+  updateFieldArrows();
+}
+
 function updateCallStack() {
   for (let arrow of callStackArrows)
-    arrow.parentNode.removeChild(arrow);
+    arrow.arrow.parentNode.removeChild(arrow.arrow);
   callStackArrows = [];
   
   let callStackTable = document.getElementById('callstack');
@@ -709,9 +747,11 @@ function updateCallStack() {
         nameCell.insertBefore(removeButton, nameCell.firstChild);
         nameCell.onmouseenter = () => {
           removeButton.style.display = "inline";
+          setTimeout(updateArrows, 0);
         };
         nameCell.onmouseleave = () => {
           removeButton.style.display = "none";
+          setTimeout(updateArrows, 0);
         };
       }
       let valueCell = document.createElement('td');
@@ -723,7 +763,7 @@ function updateCallStack() {
       if (binding.value instanceof JavaObject) {
         valueDiv.innerText = "()";
         valueDiv.style.color = "white";
-        setTimeout(() => callStackArrows.push(createArrow(valueCell, binding.value.domNode)), 0);
+        setTimeout(() => callStackArrows.push({arrow: createArrow(valueCell, binding.value.domNode), fromNode: valueCell, toNode: binding.value.domNode}), 0);
       } else
         valueDiv.innerText = binding.value;
     }
@@ -732,8 +772,8 @@ function updateCallStack() {
 
 function updateMachineView() {
   collectGarbage();
-  updateHeapValues();
   updateCallStack();
+  updateFieldArrows();
 }
 
 function executeStatements() {
