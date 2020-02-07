@@ -45,6 +45,42 @@ class Scanner {
   }
 }
 
+class LocalBinding {
+  constructor(declaration, value) {
+    this.declaration = declaration;
+    this.value = value;
+  }
+}
+
+class Scope {
+  constructor(outerScope) {
+    this.outerScope = outerScope;
+    this.bindings = {};
+  }
+  
+  tryLookup(x) {
+    if (has(this.bindings, x))
+      return this.bindings[x];
+    if (this.outerScope != null)
+      return this.outerScope.tryLookup(x);
+    return null;
+  }
+  
+  lookup(loc, x) {
+    let result = this.tryLookup(x);
+    if (result == null)
+      throw new ExecutionError(loc, "No such variable in scope: " + x);
+    return result;
+  }
+  
+  *allBindings() {
+    if (this.outerScope != null)
+      yield* this.outerScope.allBindings();
+    for (let x in this.bindings)
+      yield this.bindings[x];
+  }
+}
+
 class ASTNode {
   constructor(loc) {
     this.loc = loc;
@@ -100,9 +136,7 @@ class VariableExpression extends Expression {
   }
   
   evaluate(env) {
-    if (!has(env, this.name))
-      this.executionError("No such variable: '" + this.lhs.name + "'");
-    return env[this.name].value;
+    return env.lookup(this.loc, this.name).value;
   }
 }
 
@@ -115,10 +149,9 @@ class AssignmentExpression extends Expression {
   
   evaluate(env) {
     if (this.lhs instanceof VariableExpression) {
-      if (!has(env, this.lhs.name))
-        this.executionError("No such variable: '" + this.lhs.name + "'");
+      let binding = env.lookup(this.loc, this.lhs.name);
       let v = this.rhs.evaluate(env);
-      env[this.lhs.name].value = v;
+      binding.value = v;
       return v;
     }
     this.executionError("The left-hand side of an assignment must be a variable name");
@@ -148,10 +181,10 @@ class VariableDeclarationStatement extends Statement {
   }
   
   execute(env) {
-    if (has(env, this.name))
+    if (env.tryLookup(this.name) != null)
       this.executionError("Variable '"+x+"' already exists in this scope.");
     let v = this.init.evaluate(env);
-    env[this.name] = {declaration: this, value: v};
+    env.bindings[this.name] = new LocalBinding(this, v);
   }
 }
 
@@ -163,6 +196,22 @@ class ExpressionStatement extends Statement {
   
   execute(env) {
     this.expr.evaluate(env);
+  }
+}
+
+class Declaration extends ASTNode {
+  constructor(loc) {
+    super(loc);
+  }
+}
+
+class MethodDeclaration extends Declaration {
+  constructor(loc, returnType, name, parameterDeclarations, bodyBlock) {
+    super(loc);
+    this.returnType = returnType;
+    this.name = name;
+    this.parameterDeclarations = parameterDeclarations;
+    this.bodyBlock = bodyBlock;
   }
 }
 
@@ -345,8 +394,8 @@ class Parser {
 }
 
 let variablesTable = document.getElementById('variables');
-let mainEnv = {};
-let mainStackFrame = {title: "(toplevel)", env: mainEnv}
+let toplevelScope = new Scope(null);
+let mainStackFrame = {title: "(toplevel)", env: toplevelScope}
 let callStack = [mainStackFrame]
 
 function updateCallStack() {
@@ -363,7 +412,7 @@ function updateCallStack() {
       titleTd.className = "stackframe-title";
       titleTd.innerText = stackFrame.title;
     }
-    for (let x in stackFrame.env) {
+    for (let binding of stackFrame.env.allBindings()) {
       let row = document.createElement('tr');
       callStackTable.appendChild(row);
       let nameCell = document.createElement('td');
@@ -371,15 +420,15 @@ function updateCallStack() {
       nameCell.className = "stack-variable-name";
       let typeSpan = document.createElement('span');
       typeSpan.className = "keyword";
-      typeSpan.innerText = stackFrame.env[x].declaration.type.name;
-      nameCell.innerText = " " + stackFrame.env[x].declaration.name;
+      typeSpan.innerText = binding.declaration.type.name;
+      nameCell.innerText = " " + binding.declaration.name;
       nameCell.insertBefore(typeSpan, nameCell.firstChild);
       if (stackFrame === callStack[0]) {
         let removeButton = document.createElement('button');
         removeButton.innerText = "Remove";
         removeButton.style.display = "none";
         removeButton.onclick = () => {
-          delete stackFrame.env[x];
+          delete toplevelScope.bindings[binding.declaration.name];
           callStackTable.removeChild(row);
         };
         nameCell.insertBefore(removeButton, nameCell.firstChild);
@@ -396,7 +445,7 @@ function updateCallStack() {
       let valueDiv = document.createElement('div');
       valueCell.appendChild(valueDiv);
       valueDiv.className = "stack-value-div";
-      valueDiv.innerText = stackFrame.env[x].value;
+      valueDiv.innerText = binding.value;
     }
   }
 }
@@ -406,7 +455,7 @@ function executeStatements() {
   let parser = new Parser(statementsEditor, stmtsText);
   let stmts = parser.parseStatements({'EOF': true});
   for (let stmt of stmts) {
-    stmt.execute(mainEnv);
+    stmt.execute(toplevelScope);
   }
   updateCallStack();
 }
@@ -416,7 +465,7 @@ function evaluateExpression() {
   let parser = new Parser(expressionEditor, exprText);
   let e = parser.parseExpression();
   parser.expect("EOF");
-  let v = e.evaluate(mainEnv);
+  let v = e.evaluate(toplevelScope);
   resultsEditor.replaceRange(exprText + "\r\n", {line: resultsEditor.lastLine()});
   let lastLine = resultsEditor.lastLine();
   resultsEditor.replaceRange("==> " + v + "\r\n\r\n", {line: lastLine});
