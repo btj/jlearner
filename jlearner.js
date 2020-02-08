@@ -153,7 +153,7 @@ class Expression extends ASTNode {
     super(loc);
   }
   
-  evaluateBinding(env) {
+  async evaluateBinding(env) {
     this.executionError("This expression cannot appear on the left-hand side of an assignment");
   }
 }
@@ -164,7 +164,7 @@ class IntLiteral extends Expression {
     this.value = value;
   }
 
-  evaluate(env) {
+  async evaluate(env) {
     return +this.value;
   }
 }
@@ -177,9 +177,9 @@ class BinaryOperatorExpression extends Expression {
     this.rightOperand = rightOperand;
   }
 
-  evaluate(env) {
-    let v1 = this.leftOperand.evaluate(env);
-    let v2 = this.rightOperand.evaluate(env);
+  async evaluate(env) {
+    let v1 = await this.leftOperand.evaluate(env);
+    let v2 = await this.rightOperand.evaluate(env);
     switch (this.operator) {
       case '+': return (v1 + v2)|0;
       case '-': return (v1 - v2)|0;
@@ -196,11 +196,11 @@ class VariableExpression extends Expression {
     this.name = name;
   }
   
-  evaluateBinding(env) {
+  async evaluateBinding(env) {
     return env.lookup(this.loc, this.name);
   }
   
-  evaluate(env) {
+  async evaluate(env) {
     return env.lookup(this.loc, this.name).value;
   }
 }
@@ -212,8 +212,8 @@ class AssignmentExpression extends Expression {
     this.rhs = rhs;
   }
   
-  evaluate(env) {
-    return this.lhs.evaluateBinding(env).setValue(this.rhs.evaluate(env));
+  async evaluate(env) {
+    return (await this.lhs.evaluateBinding(env)).setValue(await this.rhs.evaluate(env));
   }
 }
 
@@ -365,7 +365,7 @@ class NewExpression extends Expression {
     this.className = className;
   }
   
-  evaluate(env) {
+  async evaluate(env) {
     if (!has(classes, this.className))
       this.executionError("No such class: " + this.className);
     return new JavaObject(classes[this.className]);
@@ -380,8 +380,8 @@ class SelectExpression extends Expression {
     this.selector = selector;
   }
   
-  evaluateBinding(env) {
-    let target = this.target.evaluate(env);
+  async evaluateBinding(env) {
+    let target = await this.target.evaluate(env);
     if (!(target instanceof JavaObject))
       this.executionError("Cannot access field of " + target);
     if (!has(target.fields, this.selector))
@@ -401,15 +401,15 @@ class CallExpression extends Expression {
     this.arguments = args;
   }
 
-  evaluate(env) {
+  async evaluate(env) {
     if (this.callee instanceof VariableExpression) {
       if (!has(toplevelMethods, this.callee.name))
         this.executionError("No such method: " + this.callee.name);
       let method = toplevelMethods[this.callee.name];
       let args = [];
       for (let e of this.arguments)
-        args.push(e.evaluate(env));
-      return method.call(this.loc, args);
+        args.push(await e.evaluate(env));
+      return await method.call(this.loc, args);
     }
     this.executionError("Callee expression must be a name");
   }
@@ -444,10 +444,10 @@ class VariableDeclarationStatement extends Statement {
     this.init = init;
   }
   
-  execute(env) {
+  async execute(env) {
     if (env.tryLookup(this.name) != null)
       throw new ExecutionError(this.nameLoc, "Variable '"+this.name+"' already exists in this scope.");
-    let v = this.init.evaluate(env);
+    let v = await this.init.evaluate(env);
     env.bindings[this.name] = new LocalBinding(this, v);
   }
 }
@@ -458,8 +458,8 @@ class ExpressionStatement extends Statement {
     this.expr = expr;
   }
   
-  execute(env) {
-    this.expr.evaluate(env);
+  async execute(env) {
+    await this.expr.evaluate(env);
   }
 }
 
@@ -488,14 +488,14 @@ class MethodDeclaration extends Declaration {
     this.bodyBlock = bodyBlock;
   }
 
-  call(loc, args) {
+  async call(loc, args) {
     let env = new Scope(null);
     if (args.length != this.parameterDeclarations.length)
       throw new ExecutionError(loc, "Incorrect number of arguments");
     for (let i = 0; i < args.length; i++)
       env.bindings[this.parameterDeclarations[i].name] = new LocalBinding(this.parameterDeclarations[i], args[i]);
     for (let stmt of this.bodyBlock)
-      stmt.execute(env);
+      await stmt.execute(env);
   }
 }
 
