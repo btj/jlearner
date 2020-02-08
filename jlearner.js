@@ -394,6 +394,27 @@ class SelectExpression extends Expression {
   }
 }
 
+class CallExpression extends Expression {
+  constructor(loc, callee, args) {
+    super(loc);
+    this.callee = callee;
+    this.arguments = args;
+  }
+
+  evaluate(env) {
+    if (this.callee instanceof VariableExpression) {
+      if (!has(toplevelMethods, this.callee.name))
+        this.executionError("No such method: " + this.callee.name);
+      let method = toplevelMethods[this.callee.name];
+      let args = [];
+      for (let e of this.arguments)
+        args.push(e.evaluate(env));
+      return method.call(this.loc, args);
+    }
+    this.executionError("Callee expression must be a name");
+  }
+}
+
 class TypeExpression extends ASTNode {
   constructor(loc, name) {
     super(loc);
@@ -448,13 +469,33 @@ class Declaration extends ASTNode {
   }
 }
 
+class ParameterDeclaration extends ASTNode {
+  constructor(loc, type, nameLoc, name) {
+    super(loc);
+    this.type = type;
+    this.nameLoc = nameLoc;
+    this.name = name;
+  }
+}
+
 class MethodDeclaration extends Declaration {
-  constructor(loc, returnType, name, parameterDeclarations, bodyBlock) {
+  constructor(loc, returnType, nameLoc, name, parameterDeclarations, bodyBlock) {
     super(loc);
     this.returnType = returnType;
+    this.nameLoc = nameLoc;
     this.name = name;
     this.parameterDeclarations = parameterDeclarations;
     this.bodyBlock = bodyBlock;
+  }
+
+  call(loc, args) {
+    let env = new Scope(null);
+    if (args.length != this.parameterDeclarations.length)
+      throw new ExecutionError(loc, "Incorrect number of arguments");
+    for (let i = 0; i < args.length; i++)
+      env.bindings[this.parameterDeclarations[i].name] = new LocalBinding(this.parameterDeclarations[i], args[i]);
+    for (let stmt of this.bodyBlock)
+      stmt.execute(env);
   }
 }
 
@@ -585,6 +626,20 @@ class Parser {
           let x = this.expect('IDENT');
           let nameLoc = this.popLoc();
           e = new SelectExpression(this.dupLoc(), e, nameLoc, x);
+          break;
+        case '(':
+          this.next();
+          let args = [];
+          if (this.token != ')') {
+            for (;;) {
+              args.push(this.parseExpression());
+              if (this.token != ',')
+                break;
+              this.eat();
+            }
+          }
+          this.expect(')');
+          e = new CallExpression(this.dupLoc(), e, args);
           break;
         default:
           this.popLoc();
@@ -718,7 +773,31 @@ class Parser {
         this.expect('}');
         return new Class(this.popLoc(), x, fields);
       default:
-        this.parseError("Keyword 'class' expected");
+        // Parse method
+        let type = this.parseType();
+        this.pushStart();
+        let name = this.expect('IDENT');
+        let nameLoc = this.popLoc();
+        this.expect('(');
+        let parameters = [];
+        if (this.token != ')') {
+          for (;;) {
+            this.pushStart();
+            let paramType = this.parseType();
+            this.pushStart();
+            let paramName = this.expect('IDENT');
+            let paramNameLoc = this.popLoc();
+            parameters.push(new ParameterDeclaration(this.popLoc(), paramType, paramNameLoc, paramName));
+            if (this.token != ',')
+              break;
+            this.eat();
+          }
+        }
+        this.expect(')');
+        this.expect('{');
+        let body = this.parseStatements({'}': true});
+        this.expect('}');
+        return new MethodDeclaration(this.popLoc(), type, nameLoc, name, parameters, body);
     }
   }
   
@@ -731,13 +810,21 @@ class Parser {
 }
 
 let classes;
+let toplevelMethods;
 
 function checkDeclarations(declarations) {
   classes = {};
+  toplevelMethods = {};
   for (let declaration of declarations) {
-    if (has(classes, declaration.name))
-      throw new LocError(declaration.loc, "A class with the same name already exists");
-    classes[declaration.name] = declaration;
+    if (declaration instanceof Class) {
+      if (has(classes, declaration.name))
+        throw new LocError(declaration.loc, "A class with the same name already exists");
+      classes[declaration.name] = declaration;
+    } else {
+      if (has(toplevelMethods, declaration.name))
+        throw new LocError(declaration.loc, "A method with the same name already exists");
+      toplevelMethods[declaration.name] = declaration;
+    }
   }
 }
 
