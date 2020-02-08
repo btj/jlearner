@@ -3,14 +3,48 @@ function isAlpha(c) { return 'A' <= c && c <= 'Z' || 'a' <= c && c <= 'z' || c =
 
 function has(object, propertyName) { return Object.prototype.hasOwnProperty.call(object, propertyName); }
 
-keywordsList = ['int', 'class', 'new'];
+keywordsList = [
+  'abstract', 'assert',
+  'boolean', 'break', 'byte',
+  'case', 'catch', 'char', 'class', 'const', 'continue',
+  'default', 'do', 'double',
+  'else', 'enum', 'extends',
+  'final', 'finally', 'float', 'for',
+  'goto',
+  'if', 'implements', 'import', 'instanceof', 'int', 'interface',
+  'long',
+  'native', 'new',
+  'package', 'private', 'protected', 'public',
+  'return', 'short', 'static', 'strictfp', 'super', 'switch', 'synchronized',
+  'this', 'throw', 'throws', 'transient', 'try',
+  'void', 'volatile', 'while'
+];
+
 keywords = {};
 
 for (let keyword of keywordsList)
   keywords[keyword] = true;
 
+operatorsList = [
+  '(', ')', '{', '}', '[', ']', ';', ',', '.', '...', '@', '::',
+  '=', '>', '<', '!', '-', '?', ':', '->',
+  '==', '>=', '<=', '!=', '&&', '||', '++', '--',
+  '+', '-', '*', '/', '&', '|', '^', '%', '<<', '>>', '>>>',
+  '+=', '-=', '*=', '/=', '&=', '|=', '^=', '%=', '<<=', '>>=', '>>>='
+]
+
+operators = {};
+operatorPrefixes = {};
+
+for (let operator of operatorsList) {
+  operators[operator] = true;
+  for (let i = 1; i < operator.length; i++)
+    operatorPrefixes[operator.substring(0, i)] = true;
+}
+
 class Scanner {
-  constructor(text) {
+  constructor(doc, text) {
+    this.doc = doc;
     this.text = text;
     this.pos = -1;
     this.eat();
@@ -44,9 +78,23 @@ class Scanner {
     }
     if (this.c == '<EOF>')
       return 'EOF';
-    let token = this.c;
+    
+    let newPos = this.pos + 1;
+    let longestOperatorFound = null;
+    for (;;) {
+      let operatorCandidate = this.text.substring(this.tokenStart, newPos);
+      if (has(operators, operatorCandidate))
+        longestOperatorFound = operatorCandidate;
+      if (has(operatorPrefixes, operatorCandidate) && newPos < this.text.length)
+        newPos++;
+      else
+        break;
+    }
+    if (longestOperatorFound === null)
+      throw new LocError({doc: this.doc, start: this.tokenStart, end: this.tokenStart + 1}, "Bad character");
+    this.pos += longestOperatorFound.length - 1;
     this.eat();
-    return token;
+    return longestOperatorFound;
   }
 }
 
@@ -462,7 +510,7 @@ class ExecutionError extends LocError {
 class Parser {
   constructor(doc, text) {
     this.doc = doc;
-    this.scanner = new Scanner(text);
+    this.scanner = new Scanner(doc, text);
     this.token = this.scanner.nextToken();
     this.posStack = [];
   }
