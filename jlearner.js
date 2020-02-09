@@ -56,8 +56,47 @@ class Scanner {
   }
 
   nextToken() {
-    while (this.c == ' ' || this.c == '\t' || this.c == '\n' || this.c == '\r')
-      this.eat();
+    eatWhite:
+    for (;;) {
+      switch (this.c) {
+        case ' ':
+        case '\t':
+        case '\n':
+        case '\r':
+          this.eat();
+          break;
+        case '/':
+          let commentStart = this.pos;
+          if (this.pos + 1 < this.text.length) {
+            switch (this.text.charAt(this.pos + 1)) {
+              case '/':
+                this.eat();
+                this.eat();
+                while (this.c != '<EOF>' && this.c != '\n' && this.c != '\r')
+                  this.eat();
+                continue eatWhite;
+              case '*':
+                this.eat();
+                this.eat();
+                for (;;) {
+                  if (this.c == '<EOF>')
+                    throw new LocError({doc: this.doc, start: commentStart, end: this.pos}, "Missing terminator for multiline comment");
+                  else if (this.c == '*' && this.pos + 1 < this.text.length && this.text.charAt(this.pos + 1) == '/') {
+                    this.eat();
+                    this.eat();
+                    continue eatWhite;
+                  } else
+                    this.eat();
+                }
+              default:
+                break eatWhite;    
+            }
+          } else
+            break eatWhite;
+        default:
+          break eatWhite;
+      }
+    }
     this.tokenStart = this.pos;
     if (isDigit(this.c)) {
       this.eat();
