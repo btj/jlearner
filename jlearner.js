@@ -186,6 +186,19 @@ class Expression extends ASTNode {
   constructor(loc, instrLoc) {
     super(loc, instrLoc);
   }
+
+  check_(env) {
+    this.type = this.check(env);
+    return this.type;
+  }
+
+  checkAgainst(env, targetType) {
+    let t = this.check_(env);
+    if (targetType instanceof ReferenceType && t == nullType)
+      return;
+    if (!targetType.equals(t))
+      this.executionError("Expression has type " + t + ", but an expression of type " + targetType + " was expected");
+  }
   
   async evaluateBinding(env) {
     this.executionError("This expression cannot appear on the left-hand side of an assignment");
@@ -202,6 +215,10 @@ class IntLiteral extends Expression {
     this.value = value;
   }
 
+  check(env) {
+    return intType;
+  }
+
   async evaluate(env) {
     await this.breakpoint();
     this.push(+this.value);
@@ -211,6 +228,10 @@ class IntLiteral extends Expression {
 class NullLiteral extends Expression {
   constructor(loc) {
     super(loc, loc);
+  }
+
+  check(env) {
+    return nullType;
   }
 
   async evaluate(env) {
@@ -225,6 +246,35 @@ class BinaryOperatorExpression extends Expression {
     this.leftOperand = leftOperand;
     this.operator = operator;
     this.rightOperand = rightOperand;
+  }
+
+  check(env) {
+    switch (this.operator) {
+      case '+':
+      case '-':
+      case '*':
+      case '/':
+        this.leftOperand.checkAgainst(env, intType);
+        this.rightOperand.checkAgainst(env, intType);
+        return intType;
+      case '<':
+      case '<=':
+      case '>':
+      case '>=':
+        this.leftOperand.checkAgainst(env, intType);
+        this.rightOperand.checkAgainst(env, intType);
+        return booleanType;
+      case '==':
+      case '!=':
+        let lt = this.leftOperand.check_(env);
+        let rt = this.rightOperand.check_(env);
+        if (!(lt instanceof ReferenceType && rt instanceof ReferenceType))
+         if (lt != rt)
+           this.executionError("Cannot compare a " + lt + " and a " + rt);
+        return booleanType;
+      default:
+        this.executionError("Operator not supported");
+    }
   }
 
   eval(v1, v2) {
@@ -257,6 +307,10 @@ class VariableExpression extends Expression {
     super(loc, loc);
     this.name = name;
   }
+
+  check(env) {
+    return env.lookup(this.loc, this.name).declaration.type.type;
+  }
   
   async evaluateBinding(env) {
     return () => env.lookup(this.loc, this.name);
@@ -273,6 +327,11 @@ class AssignmentExpression extends Expression {
     super(loc, instrLoc);
     this.lhs = lhs;
     this.rhs = rhs;
+  }
+
+  check(env) {
+    let t = this.lhs.check_(env);
+    this.rhs.checkAgainst(env, t);
   }
   
   async evaluate(env) {
@@ -470,6 +529,12 @@ class NewExpression extends Expression {
     super(loc, instrLoc);
     this.className = className;
   }
+
+  check(env) {
+    if (!has(classes, this.className))
+      this.executionError("No such class: " + this.className);
+    return classes[this.className].type;
+  }
   
   async evaluate(env) {
     await this.breakpoint();
@@ -484,6 +549,12 @@ class NewArrayExpression extends Expression {
     super(loc, instrLoc);
     this.elementType = elementType;
     this.lengthExpr = lengthExpr;
+  }
+
+  check(env) {
+    this.elementType.resolve();
+    this.lengthExpr.checkAgainst(env, intType);
+    return new ArrayType(this.elementType.type);
   }
 
   async evaluate(env) {
@@ -502,6 +573,13 @@ class NewArrayWithInitializerExpression extends Expression {
     super(loc, instrLoc);
     this.elementType = elementType;
     this.elementExpressions = elementExpressions;
+  }
+
+  check(env) {
+    this.elementType.resolve();
+    for (let e of this.elementExpressions)
+      e.checkAgainst(env, this.elementType.type);
+    return new ArrayType(this.elementType.type);
   }
 
   async evaluate(env) {
@@ -526,6 +604,20 @@ class SelectExpression extends Expression {
     this.target = target;
     this.selectorLoc = selectorLoc;
     this.selector = selector;
+  }
+
+  check(env) {
+    let targetType = this.target.check_(env);
+    if (targetType instanceof ArrayType) {
+      if (this.selector != "length")
+        this.executionError("Arrays do not have a field named '" + this.selector + "'");
+      return intType;
+    }
+    if (!(targetType instanceof ClassType))
+      this.executionError("Target expression must be of class type");
+    if (!has(targetType.class_.fields, this.selector))
+      this.executionError("Class " + targetType.class_.name + " does not have a field named '" + this.selector + "'");
+    return targetType.class_.fields[this.selector].type.type;
   }
   
   async evaluateBinding(env, allowReadOnly) {
@@ -561,6 +653,14 @@ class SubscriptExpression extends Expression {
     this.index = index;
   }
 
+  check(env) {
+    let targetType = this.target.check_(env);
+    if (!(targetType instanceof ArrayType))
+      this.executionError("Target of subscript expression must be of array type");
+    this.index.checkAgainst(env, intType);
+    return targetType.elementType;
+  }
+
   async evaluateBinding(env) {
     await this.target.evaluate(env);
     await this.index.evaluate(env);
@@ -590,6 +690,19 @@ class CallExpression extends Expression {
     this.arguments = args;
   }
 
+  check(env) {
+    if (this.callee instanceof VariableExpression) {
+      if (!has(toplevelMethods, this.callee.name))
+        this.executionError("No such method: " + this.callee.name);
+      let method = toplevelMethods[this.callee.name];
+      if (method.parameterDeclarations.length != this.arguments.length)
+        this.executionError("Incorrect number of arguments");
+      for (let i = 0; i < this.arguments.length; i++)
+        this.arguments[i].checkAgainst(env, method.parameterDeclarations[i].type.type);
+      return method.returnType.type;
+    }
+  }
+
   async evaluate(env) {
     if (this.callee instanceof VariableExpression) {
       if (!has(toplevelMethods, this.callee.name))
@@ -614,6 +727,9 @@ class Type {
     if (has(keywords, text))
       return "<span class='keyword'>" + text + "</span>";
     return text;
+  }
+  equals(other) {
+    return this == other;
   }
 }
 
@@ -645,6 +761,13 @@ class ReferenceType extends Type {
   defaultValue() { return null; }
 }
 
+class NullType extends ReferenceType {
+  constructor() { super(); }
+  toString() { return "nulltype"; }
+}
+
+let nullType = new NullType();
+
 class ClassType extends ReferenceType {
   constructor(class_) {
     super();
@@ -660,6 +783,9 @@ class ArrayType extends ReferenceType {
   }
   toString() { return this.elementType.toString() + "[]"; }
   toHTML() { return this.elementType.toHTML() + "[]"; }
+  equals(other) {
+    return other instanceof ArrayType && this.elementType.equals(other.elementType);
+  }
 }
 
 class TypeExpression extends ASTNode {
@@ -716,6 +842,14 @@ class VariableDeclarationStatement extends Statement {
     this.name = name;
     this.init = init;
   }
+
+  check(env) {
+    this.type.resolve();
+    if (env.tryLookup(this.name) != null)
+      throw new ExecutionError(this.nameLoc, "Variable '" + this.name + "' already exists in this scope.");
+    this.init.checkAgainst(env, this.type.type);
+    env.bindings[this.name] = new LocalBinding(this, this.type.type);
+  }
   
   async execute(env) {
     if (env.tryLookup(this.name) != null)
@@ -732,6 +866,10 @@ class ExpressionStatement extends Statement {
     super(loc, instrLoc);
     this.expr = expr;
   }
+
+  check(env) {
+    this.expr.check_(env);
+  }
   
   async execute(env) {
     await this.expr.evaluate(env);
@@ -743,6 +881,18 @@ class ReturnStatement extends Statement {
   constructor(loc, instrLoc, operand) {
     super(loc, instrLoc);
     this.operand = operand;
+  }
+
+  check(env) {
+    let resultType = env.tryLookup("#result");
+    if (resultType == null)
+      this.executionError("Cannot return here");
+    if (this.operand == null) {
+      if (resultType.value != voidType)
+        this.executionError("Return value expected");
+    } else {
+      this.operand.checkAgainst(env, resultType.value);
+    }
   }
 
   async execute(env) {
@@ -761,6 +911,12 @@ class BlockStatement extends Statement {
   constructor(loc, stmts) {
     super(loc, loc);
     this.stmts = stmts;
+  }
+
+  check(env) {
+    let scope = new Scope(env);
+    for (let stmt of this.stmts)
+      stmt.check(scope);
   }
 
   async execute(env) {
@@ -784,6 +940,11 @@ class WhileStatement extends Statement {
     this.body = body;
   }
 
+  check(env) {
+    this.condition.checkAgainst(env, booleanType);
+    this.body.check(env);
+  }
+
   async execute(env) {
     let result;
     while (result === undefined) {
@@ -804,6 +965,13 @@ class IfStatement extends Statement {
     this.condition = condition;
     this.thenBody = thenBody;
     this.elseBody = elseBody;
+  }
+
+  check(env) {
+    this.condition.checkAgainst(env, booleanType);
+    this.thenBody.check(env);
+    if (this.elseBody != null)
+      this.elseBody.check(env);
   }
 
   async execute(env) {
@@ -830,6 +998,10 @@ class ParameterDeclaration extends Declaration {
     this.nameLoc = nameLoc;
     this.name = name;
   }
+
+  check() {
+    this.type.resolve();
+  }
 }
 
 class MethodDeclaration extends Declaration {
@@ -842,6 +1014,24 @@ class MethodDeclaration extends Declaration {
     this.bodyBlock = bodyBlock;
     let closeBraceLoc = {doc: loc.doc, start: loc.end - 1, end: loc.end};
     this.implicitReturnStmt = new ReturnStatement(closeBraceLoc, closeBraceLoc);
+  }
+
+  enter() {
+    this.returnType.resolve();
+    for (let p of this.parameterDeclarations)
+      p.check();
+  }
+
+  check() {
+    let env = new Scope(null);
+    for (let p of this.parameterDeclarations) {
+      if (has(env.bindings, p.name))
+        this.executionError("Duplicate parameter name");
+      env.bindings[p.name] = new LocalBinding(p, p.type.type);
+    }
+    env.bindings["#result"] = new LocalBinding(this, this.returnType.type);
+    for (let stmt of this.bodyBlock)
+      stmt.check(env);
   }
 
   async call(callExpr, args) {
@@ -871,18 +1061,28 @@ class FieldDeclaration extends Declaration {
     this.type = type;
     this.name = name;
   }
+
+  enter() {
+    this.type.resolve();
+  }
 }
 
 class Class extends Declaration {
   constructor(loc, name, fields) {
     super(loc);
     this.name = name;
+    this.type = new ClassType(this);
     this.fields = {};
     for (let field of fields) {
       if (has(this.fields, field.name))
         field.executionError("A field with this name already exists in this class");
       this.fields[field.name] = field;
     }
+  }
+
+  enter() {
+    for (let field of this.fields)
+      field.enter();
   }
 }
 
@@ -1331,6 +1531,12 @@ function checkDeclarations(declarations) {
       toplevelMethods[declaration.name] = declaration;
     }
   }
+  for (let c in classes)
+    classes[c].enter();
+  for (let m in toplevelMethods)
+    toplevelMethods[m].enter();
+  for (let m in toplevelMethods)
+    toplevelMethods[m].check();
 }
 
 let variablesTable = document.getElementById('variables');
@@ -1482,6 +1688,9 @@ async function executeStatements(step) {
     let stmtsText = statementsEditor.getValue();
     let parser = new Parser(statementsEditor, stmtsText);
     let stmts = parser.parseStatements({'EOF': true});
+    let typeScope = new Scope(toplevelScope); // The type bindings should not be present when executing
+    for (let stmt of stmts)
+      stmt.check(typeScope);
     currentBreakCondition = () => step;
     for (let stmt of stmts) {
       if (await stmt.execute(toplevelScope) !== undefined)
@@ -1568,6 +1777,7 @@ async function evaluateExpression(step) {
     let parser = new Parser(expressionEditor, exprText);
     let e = parser.parseExpression();
     parser.expect("EOF");
+    e.check_(toplevelScope);
     currentBreakCondition = () => step;
     await e.evaluate(toplevelScope);
     let [v] = pop(1);
