@@ -609,7 +609,7 @@ class JavaObject {
 function initialClassFieldBindings(class_) {
   let fields = {};
   for (let field in class_.fields)
-    this.fields[field] = new FieldBinding(class_.fields[field].type.resolve().defaultValue());
+    fields[field] = new FieldBinding(class_.fields[field].type.resolve().defaultValue());
   return fields;
 }
 
@@ -1191,8 +1191,8 @@ class Class extends Declaration {
   }
 
   enter() {
-    for (let field of this.fields)
-      field.enter();
+    for (let field in this.fields)
+      this.fields[field].enter();
   }
 }
 
@@ -1727,6 +1727,7 @@ class Parser {
   }
 }
 
+let lastCheckedDeclarations = null;
 let classes;
 let toplevelMethods;
 
@@ -1978,9 +1979,14 @@ async function handleError(body) {
 
 function parseDeclarations() {
   let text = declarationsEditor.getValue();
+  if (lastCheckedDeclarations != null && lastCheckedDeclarations == text)
+    return;
+  resetMachine();
+  updateMachineView();
   let parser = new Parser(declarationsEditor, text);
   let decls = parser.parseDeclarations();
   checkDeclarations(decls);
+  lastCheckedDeclarations = text;
 }
 
 async function evaluateExpression(step) {
