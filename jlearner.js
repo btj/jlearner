@@ -943,14 +943,14 @@ function updateMachineView() {
   updateFieldArrows();
 }
 
-function executeStatements() {
-  handleError(() => {
+async function executeStatements() {
+  await handleError(async () => {
     parseDeclarations();
     let stmtsText = statementsEditor.getValue();
     let parser = new Parser(statementsEditor, stmtsText);
     let stmts = parser.parseStatements({'EOF': true});
     for (let stmt of stmts) {
-      stmt.execute(toplevelScope);
+      await stmt.execute(toplevelScope);
     }
   });
   updateMachineView();
@@ -986,10 +986,10 @@ function addErrorWidget(editor, line, msg) {
   errorWidgets.push(editor.addLineWidget(line, widget, {coverGutter: false, noHScroll: true}));
 }
 
-function handleError(body) {
+async function handleError(body) {
   clearErrorWidgets();
   try {
-    body();
+    await body();
   } catch (ex) {
     if (ex instanceof LocError) {
       let editor = ex.loc.doc;
@@ -1026,14 +1026,14 @@ function parseDeclarations() {
   checkDeclarations(decls);
 }
 
-function evaluateExpression() {
-  handleError(() => {
+async function evaluateExpression() {
+  await handleError(async () => {
     parseDeclarations();
     let exprText = expressionEditor.getValue();
     let parser = new Parser(expressionEditor, exprText);
     let e = parser.parseExpression();
     parser.expect("EOF");
-    let v = e.evaluate(toplevelScope);
+    let v = await e.evaluate(toplevelScope);
     resultsEditor.replaceRange(exprText + "\r\n", {line: resultsEditor.lastLine()});
     let lastLine = resultsEditor.lastLine();
     resultsEditor.replaceRange("==> " + v + "\r\n\r\n", {line: lastLine});
