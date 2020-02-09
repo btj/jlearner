@@ -9,14 +9,14 @@ keywordsList = [
   'case', 'catch', 'char', 'class', 'const', 'continue',
   'default', 'do', 'double',
   'else', 'enum', 'extends',
-  'final', 'finally', 'float', 'for',
+  'false', 'final', 'finally', 'float', 'for',
   'goto',
   'if', 'implements', 'import', 'instanceof', 'int', 'interface',
   'long',
-  'native', 'new',
+  'native', 'new', 'null',
   'package', 'private', 'protected', 'public',
   'return', 'short', 'static', 'strictfp', 'super', 'switch', 'synchronized',
-  'this', 'throw', 'throws', 'transient', 'try',
+  'this', 'throw', 'throws', 'transient', 'true', 'try',
   'void', 'volatile', 'while'
 ];
 
@@ -208,6 +208,17 @@ class IntLiteral extends Expression {
   }
 }
 
+class NullLiteral extends Expression {
+  constructor(loc) {
+    super(loc, loc);
+  }
+
+  async evaluate(env) {
+    await this.breakpoint();
+    this.push(null);
+  }
+}
+
 class BinaryOperatorExpression extends Expression {
   constructor(loc, instrLoc, leftOperand, operator, rightOperand) {
     super(loc, instrLoc);
@@ -222,11 +233,17 @@ class BinaryOperatorExpression extends Expression {
       case '-': return (v1 - v2)|0;
       case '*': return (v1 * v2)|0;
       case '/': return (v1 / v2)|0;
+      case '==': return v1 == v2;
+      case '!=': return v1 != v2;
+      case '<': return v1 < v2;
+      case '<=': return v1 <= v2;
+      case '>': return v1 > v2;
+      case '>=': return v1 >= v2;
       default: this.executionError("Operator '" + this.operator + "' not supported.");
     }
   }
   
-    async evaluate(env) {
+  async evaluate(env) {
     await this.leftOperand.evaluate(env);
     await this.rightOperand.evaluate(env);
     await this.breakpoint();
@@ -288,7 +305,19 @@ function collectGarbage() {
   objectsShown = newObjectsShown;
 }
 
-let nextObjectY = 0;
+function computeNextObjectY() {
+  let svg = document.getElementById('arrows-svg');
+  let svgRect = svg.getClientRects()[0];
+
+  let nextObjectY = 0;
+  
+  for (let o of objectsShown) {
+    let rect = o.domNode.getClientRects()[0];
+    nextObjectY = Math.max(nextObjectY, rect.bottom - svgRect.top + 5);
+  }
+
+  return nextObjectY;
+}
 
 function createHeapObjectDOMNode(object) {
   let heap = document.getElementById('heap');
@@ -296,7 +325,7 @@ function createHeapObjectDOMNode(object) {
   heap.appendChild(node);
   node.className = 'object-table';
   node.style.left = "0px";
-  node.style.top = nextObjectY + "px";
+  node.style.top = computeNextObjectY() + "px";
   node.onmousedown = event0 => {
     event0.preventDefault();
     let left0 = node.offsetLeft;
@@ -362,7 +391,7 @@ class FieldBinding {
       this.valueCell.innerText = "()";
       this.valueCell.style.color = "white";
     } else {
-      this.valueCell.innerText = value;
+      this.valueCell.innerText = value == null ? "null" : value;
       this.valueCell.style.color = "black";
     }
     return value;
@@ -533,8 +562,54 @@ class ExpressionStatement extends Statement {
 }
 
 class ReturnStatement extends Statement {
-  constructor(loc, instrLoc) {
+  constructor(loc, instrLoc, operand) {
     super(loc, instrLoc);
+    this.operand = operand;
+  }
+
+  async execute(env) {
+    if (this.operand != null) {
+      await this.operand.evaluate(env);
+      await this.breakpoint();
+      let [v] = pop(1);
+      // TODO: actually return
+    } else {
+      // TODO: actually return
+    }
+  }
+}
+
+class BlockStatement extends Statement {
+  constructor(loc, stmts) {
+    super(loc, loc);
+    this.stmts = stmts;
+  }
+
+  async execute(env) {
+    let scope = new Scope(env);
+    callStack[callStack.length - 1].env = scope;
+    for (let stmt of this.stmts)
+      await stmt.execute(scope);
+    callStack[callStack.length - 1].env = env;
+  }
+}
+
+class WhileStatement extends Statement {
+  constructor(loc, instrLoc, condition, body) {
+    super(loc, instrLoc);
+    this.condition = condition;
+    this.body = body;
+  }
+
+  async execute(env) {
+    for (;;) {
+      await this.condition.evaluate(env);
+      await this.breakpoint();
+      let [b] = pop(1);
+      if (!b)
+        break;
+      await this.body.execute(env);
+    }
   }
 }
 
@@ -575,7 +650,7 @@ class MethodDeclaration extends Declaration {
       await stmt.execute(env);
     await checkBreakpoint(this.implicitReturnStmt);
     callStack.pop();
-    push(callExpr, undefined);
+    push(new OperandBinding(callExpr, null));
   }
 }
 
@@ -691,6 +766,9 @@ class Parser {
         this.expect(")");
         this.popLoc();
         return e;
+      case "null":
+        this.next();
+        return new NullLiteral(this.popLoc());
       default:
         this.parseError("Number or identifier expected");
     }
@@ -776,10 +854,32 @@ class Parser {
       }
     }
   }
+
+  parseRelationalExpression() {
+    this.pushStart();
+    let e = this.parseAdditiveExpression();
+    switch (this.token) {
+      case '==':
+      case '!=':
+      case '<':
+      case '<=':
+      case '>':
+      case '>=':
+        this.pushStart();
+        let op = this.token;
+        this.next();
+        let instrLoc = this.popLoc();
+        let rhs = this.parseAdditiveExpression();
+        return new BinaryOperatorExpression(this.popLoc(), instrLoc, e, op, rhs);
+      default:
+        this.popLoc();
+        return e;
+    }
+  }
   
   parseAssignmentExpression() {
     this.pushStart();
-    let e = this.parseAdditiveExpression();
+    let e = this.parseRelationalExpression();
     switch (this.token) {
       case '=':
         this.pushStart();
@@ -821,6 +921,36 @@ class Parser {
   
   parseStatement() {
     this.pushStart();
+    switch (this.token) {
+      case '{': {
+        this.next();
+        let stmts = this.parseStatements({'}': true});
+        this.expect('}');
+        return new BlockStatement(this.popLoc(), stmts);
+      }
+      case 'while': {
+        this.pushStart();
+        this.next();
+        let instrLoc = this.popLoc();
+        this.expect('(');
+        let condition = this.parseExpression();
+        this.expect(')');
+        let body = this.parseStatement();
+        return new WhileStatement(this.popLoc(), instrLoc, condition, body);
+      }
+      case 'return': {
+        this.pushStart();
+        this.next();
+        let instrLoc = this.popLoc();
+        let e;
+        if (this.token == ';')
+          e = null;
+        else
+          e = this.parseExpression();
+        this.expect(';');
+        return new ReturnStatement(this.popLoc(), instrLoc, e);
+      }
+    }
     this.pushStart();
     let type = this.tryParseType();
     if (type != null) {
@@ -1045,7 +1175,7 @@ function updateCallStack() {
         valueDiv.style.color = "white";
         setTimeout(() => callStackArrows.push({arrow: createArrow(valueCell, binding.value.domNode), fromNode: valueCell, toNode: binding.value.domNode}), 0);
       } else
-        valueDiv.innerText = binding.value;
+        valueDiv.innerText = binding.value == null ? "null" : binding.value;
     }
   }
 }

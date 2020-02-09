@@ -87,14 +87,31 @@
       mode: 'text/x-java'
     });
     declarationsEditor.setSize("100%", "15em");
-    declarationsEditor.setValue("class Foo { int a; int b; }\nint foo(Foo f) {\n  f.a = f.a + 1;\n}");
+    declarationsEditor.setValue(
+      "class Node {\n" +
+      "  Node next;\n" +
+      "}\n" +
+      "Node reverse(Node n) {\n" +
+      "  Node result = null;\n" +
+      "  while (n != null) {\n" +
+      "    Node next = n.next;\n" +
+      "    n.next = result;\n" +
+      "    result = n;\n" +
+      "    n = next;\n" +
+      "  }\n" +
+      "  return result;\n" +
+      "}");
     declarationsEditor.on('changes', () => clearErrorWidgets());
     var statementsEditor = CodeMirror.fromTextArea(document.getElementById('statements'), {
       lineNumbers: false,
       matchBrackets: true,
       mode: 'text/x-java'
     });
-    statementsEditor.setValue("Foo x = new Foo();\nfoo(x);");
+    statementsEditor.setValue(
+      "Node n3 = new Node();\n" +
+      "Node n2 = new Node(); n2.next = n3;\n" +
+      "Node n1 = new Node(); n1.next = n2;\n" +
+      "Node r = reverse(n1);");
     statementsEditor.on('changes', () => clearErrorWidgets());
     statementsEditor.setSize("100%", "10em");
     statementsEditor.on('keydown', (editor, event) => {
@@ -105,7 +122,7 @@
       matchBrackets: true,
       mode: 'text/x-java'
     });
-    expressionEditor.setValue("new Foo()");
+    expressionEditor.setValue("r = reverse(r)");
     expressionEditor.on('changes', () => clearErrorWidgets());
     expressionEditor.setSize("100%", "3em");
     var resultsEditor = CodeMirror.fromTextArea(document.getElementById('results'), {
