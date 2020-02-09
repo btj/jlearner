@@ -107,6 +107,21 @@ class LocalBinding {
   setValue(value) {
     return this.value = value;
   }
+
+  getNameHTML() {
+    return this.declaration.type.toHTML() + " " + this.declaration.name;
+  }
+}
+
+class OperandBinding {
+  constructor(expression, value) {
+    this.expression = expression;
+    this.value = value;
+  }
+
+  getNameHTML() {
+    return "(operand)";
+  }
 }
 
 class Scope {
@@ -138,6 +153,20 @@ class Scope {
   }
 }
 
+class StackFrame {
+  constructor(title, env) {
+    this.title = title;
+    this.env = env;
+    this.operands = [];
+  }
+
+  *allBindings() {
+    yield* this.env.allBindings();
+    for (let operand of this.operands)
+      yield operand;
+  }
+}
+
 class ASTNode {
   constructor(loc, instrLoc) {
     this.loc = loc;
@@ -161,6 +190,10 @@ class Expression extends ASTNode {
   async evaluateBinding(env) {
     this.executionError("This expression cannot appear on the left-hand side of an assignment");
   }
+
+  push(value) {
+    push(new OperandBinding(this, value));
+  }
 }
 
 class IntLiteral extends Expression {
@@ -171,7 +204,7 @@ class IntLiteral extends Expression {
 
   async evaluate(env) {
     await this.breakpoint();
-    return +this.value;
+    this.push(+this.value);
   }
 }
 
@@ -183,17 +216,22 @@ class BinaryOperatorExpression extends Expression {
     this.rightOperand = rightOperand;
   }
 
-  async evaluate(env) {
-    let v1 = await this.leftOperand.evaluate(env);
-    let v2 = await this.rightOperand.evaluate(env);
-    await this.breakpoint();
+  eval(v1, v2) {
     switch (this.operator) {
       case '+': return (v1 + v2)|0;
       case '-': return (v1 - v2)|0;
       case '*': return (v1 * v2)|0;
       case '/': return (v1 / v2)|0;
-      default: throw new Error("Operator '" + this.operator + "' not supported.");
+      default: this.executionError("Operator '" + this.operator + "' not supported.");
     }
+  }
+  
+    async evaluate(env) {
+    await this.leftOperand.evaluate(env);
+    await this.rightOperand.evaluate(env);
+    await this.breakpoint();
+    let [v1, v2] = pop(2);
+    this.push(this.eval(v1, v2));
   }
 }
 
@@ -204,12 +242,12 @@ class VariableExpression extends Expression {
   }
   
   async evaluateBinding(env) {
-    return env.lookup(this.loc, this.name);
+    return () => env.lookup(this.loc, this.name);
   }
   
   async evaluate(env) {
     await this.breakpoint();
-    return env.lookup(this.loc, this.name).value;
+    this.push(env.lookup(this.loc, this.name).value);
   }
 }
 
@@ -221,10 +259,12 @@ class AssignmentExpression extends Expression {
   }
   
   async evaluate(env) {
-    let lhs = await this.lhs.evaluateBinding(env);
-    let rhs = await this.rhs.evaluate(env);
+    let bindingThunk = await this.lhs.evaluateBinding(env);
+    await this.rhs.evaluate(env);
     await this.breakpoint();
-    return lhs.setValue(rhs);
+    let [rhs] = pop(1);
+    let lhs = bindingThunk();
+    this.push(lhs.setValue(rhs));
   }
 }
 
@@ -235,7 +275,7 @@ function collectGarbage() {
   for (let o of objectsShown)
     o.marked = false;
   for (let stackFrame of callStack)
-    for (let binding of stackFrame.env.allBindings())
+    for (let binding of stackFrame.allBindings())
       if (binding.value instanceof JavaObject)
         binding.value.mark();
   let newObjectsShown = [];
@@ -380,7 +420,7 @@ class NewExpression extends Expression {
     await this.breakpoint();
     if (!has(classes, this.className))
       this.executionError("No such class: " + this.className);
-    return new JavaObject(classes[this.className]);
+    this.push(new JavaObject(classes[this.className]));
   }
 }
 
@@ -393,17 +433,21 @@ class SelectExpression extends Expression {
   }
   
   async evaluateBinding(env) {
-    let target = await this.target.evaluate(env);
-    await this.breakpoint();
-    if (!(target instanceof JavaObject))
-      this.executionError("Cannot access field of " + target);
-    if (!has(target.fields, this.selector))
-      this.executionError("Target does not have a field named " + this.selector);
-    return target.fields[this.selector];
+    await this.target.evaluate(env);
+    return () => {
+      let [target] = pop(1);
+      if (!(target instanceof JavaObject))
+        this.executionError("Cannot access field of " + target);
+      if (!has(target.fields, this.selector))
+        this.executionError("Target does not have a field named " + this.selector);
+      return target.fields[this.selector];
+    }
   }
   
   async evaluate(env) {
-    return (await this.evaluateBinding(env)).value;
+    let bindingThunk = await this.evaluateBinding(env);
+    await this.breakpoint();
+    this.push(bindingThunk().value);
   }
 }
 
@@ -419,13 +463,15 @@ class CallExpression extends Expression {
       if (!has(toplevelMethods, this.callee.name))
         this.executionError("No such method: " + this.callee.name);
       let method = toplevelMethods[this.callee.name];
-      let args = [];
+      if (method.parameterDeclarations.length != this.arguments.length)
+        this.executionError("Incorrect number of arguments");
       for (let e of this.arguments)
-        args.push(await e.evaluate(env));
+        await e.evaluate(env);
       await this.breakpoint();
-      return await method.call(this.loc, args);
-    }
-    this.executionError("Callee expression must be a name");
+      let args = pop(this.arguments.length);
+      await method.call(this, args);
+    } else
+      this.executionError("Callee expression must be a name");
   }
 }
 
@@ -440,6 +486,12 @@ class TypeExpression extends ASTNode {
       case 'int': return 0;
       default: return null;
     }
+  }
+
+  toHTML() {
+    if (has(keywords, this.name))
+      return "<span class='keyword'>" + this.name + "</span>";
+    return this.name;
   }
 }
 
@@ -461,8 +513,9 @@ class VariableDeclarationStatement extends Statement {
   async execute(env) {
     if (env.tryLookup(this.name) != null)
       throw new ExecutionError(this.nameLoc, "Variable '"+this.name+"' already exists in this scope.");
-    let v = await this.init.evaluate(env);
+    await this.init.evaluate(env);
     await this.breakpoint();
+    let [v] = pop(1);
     env.bindings[this.name] = new LocalBinding(this, v);
   }
 }
@@ -475,6 +528,13 @@ class ExpressionStatement extends Statement {
   
   async execute(env) {
     await this.expr.evaluate(env);
+    pop(1);
+  }
+}
+
+class ReturnStatement extends Statement {
+  constructor(loc, instrLoc) {
+    super(loc, instrLoc);
   }
 }
 
@@ -501,16 +561,21 @@ class MethodDeclaration extends Declaration {
     this.name = name;
     this.parameterDeclarations = parameterDeclarations;
     this.bodyBlock = bodyBlock;
+    let closeBraceLoc = {doc: loc.doc, start: loc.end - 1, end: loc.end};
+    this.implicitReturnStmt = new ReturnStatement(closeBraceLoc, closeBraceLoc);
   }
 
-  async call(loc, args) {
+  async call(callExpr, args) {
     let env = new Scope(null);
-    if (args.length != this.parameterDeclarations.length)
-      throw new ExecutionError(loc, "Incorrect number of arguments");
+    let stackFrame = new StackFrame(this.name, env);
+    callStack.push(stackFrame);
     for (let i = 0; i < args.length; i++)
       env.bindings[this.parameterDeclarations[i].name] = new LocalBinding(this.parameterDeclarations[i], args[i]);
     for (let stmt of this.bodyBlock)
       await stmt.execute(env);
+    await checkBreakpoint(this.implicitReturnStmt);
+    callStack.pop();
+    push(callExpr, undefined);
   }
 }
 
@@ -866,8 +931,19 @@ function checkDeclarations(declarations) {
 
 let variablesTable = document.getElementById('variables');
 let toplevelScope = new Scope(null);
-let mainStackFrame = {title: "(toplevel)", env: toplevelScope}
+let mainStackFrame = new StackFrame("(toplevel)", toplevelScope);
 let callStack = [mainStackFrame]
+
+function push(binding) {
+  callStack[callStack.length - 1].operands.push(binding);
+}
+
+function pop(N) {
+  let operands = callStack[callStack.length - 1].operands;
+  let result = operands.slice(operands.length - N, operands.length);
+  operands.length -= N;
+  return result.map(binding => binding.value);
+}
 
 let callStackArrows = []
 
@@ -928,18 +1004,14 @@ function updateCallStack() {
       titleTd.className = "stackframe-title";
       titleTd.innerText = stackFrame.title;
     }
-    for (let binding of stackFrame.env.allBindings()) {
+    for (let binding of stackFrame.allBindings()) {
       let row = document.createElement('tr');
       callStackTable.appendChild(row);
       let nameCell = document.createElement('td');
       row.appendChild(nameCell);
       nameCell.className = "stack-variable-name";
-      let typeSpan = document.createElement('span');
-      typeSpan.className = "keyword";
-      typeSpan.innerText = binding.declaration.type.name;
-      nameCell.innerText = " " + binding.declaration.name;
-      nameCell.insertBefore(typeSpan, nameCell.firstChild);
-      if (stackFrame === callStack[0]) {
+      nameCell.innerHTML = binding.getNameHTML();
+      if (callStack.length == 1 && callStack[0].env.outerScope == null && binding instanceof LocalBinding) {
         let removeButton = document.createElement('button');
         removeButton.innerText = "Remove";
         removeButton.style.display = "none";
@@ -1069,7 +1141,8 @@ async function evaluateExpression() {
     let parser = new Parser(expressionEditor, exprText);
     let e = parser.parseExpression();
     parser.expect("EOF");
-    let v = await e.evaluate(toplevelScope);
+    await e.evaluate(toplevelScope);
+    let [v] = pop(1);
     resultsEditor.replaceRange(exprText + "\r\n", {line: resultsEditor.lastLine()});
     let lastLine = resultsEditor.lastLine();
     resultsEditor.replaceRange("==> " + v + "\r\n\r\n", {line: lastLine});
@@ -1084,25 +1157,22 @@ function markLoc(loc, className) {
   return loc.doc.markText(getTextCoordsFromOffset(text, loc.start), getTextCoordsFromOffset(text, loc.end), {className});
 }
 
-let currentNode = null;
 let currentInstructionMark = null;
 let resumeFunc = null;
 
 function checkBreakpoint(node) {
   return new Promise((resolve, reject) => {
+    updateMachineView();
     currentInstructionMark = markLoc(node.instrLoc, "current-instruction");
     resumeFunc = () => {
       currentInstructionMark.clear();
       resolve();
     };
-    currentNode = node;
   });
 }
 
 function step() {
-  let node = currentNode;
   let f = resumeFunc;
-  currentNode = null;
   resumeFunc = null;
   f();
 }

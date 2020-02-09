@@ -41,12 +41,12 @@
       <p><b>Results:</b> <button onClick="resultsEditor.setValue('')">Clear</button></p>
       <p><textarea id="results"></textarea></p>
     </td>
-    <td id="machine" height="100%">
+    <td id="machine" height="100%" style="vertical-align: top; padding-left: 20px">
       <p><button onclick="step()">Step</button> <button onclick="stepOver()">Step over</button> <button onClick="stepOut()">Step out</button> <button onclick="continue_()">Continue</button> <button onclick="reset()">Reset</button></p>
-      <p style="position: relative; display: flex; flex-direction: row; align-items: stretch">
+      <div style="position: relative; display: flex; flex-direction: row; align-items: stretch">
             <table id="callstack" style="background-color: lightgreen; border: 2px solid black; border-collapse: collapse">
             </table>
-            <div id="heap" style="position: relative; flex-grow: 1">
+            <div id="heap" style="position: relative; flex-grow: 1; margin-left: 20px">
             <!--
             <table id="to" class="object-table">
               <tr><td colspan="2" class="object-title-td"><span class="code" ><span class="keyword">int</span>[]</span> (id=1) (length=4)</td></tr>
@@ -70,7 +70,7 @@
            marker-end="url(#arrowhead)" />
         -->
       </svg>
-      </p>
+    </div>
     </td>
     </tr>
     </table>
