@@ -143,6 +143,10 @@ class ASTNode {
     this.loc = loc;
     this.instrLoc = instrLoc;
   }
+
+  async breakpoint() {
+    await checkBreakpoint(this);
+  }
   
   executionError(msg) {
     throw new ExecutionError(this.instrLoc, msg);
@@ -166,6 +170,7 @@ class IntLiteral extends Expression {
   }
 
   async evaluate(env) {
+    await this.breakpoint();
     return +this.value;
   }
 }
@@ -181,6 +186,7 @@ class BinaryOperatorExpression extends Expression {
   async evaluate(env) {
     let v1 = await this.leftOperand.evaluate(env);
     let v2 = await this.rightOperand.evaluate(env);
+    await this.breakpoint();
     switch (this.operator) {
       case '+': return (v1 + v2)|0;
       case '-': return (v1 - v2)|0;
@@ -202,6 +208,7 @@ class VariableExpression extends Expression {
   }
   
   async evaluate(env) {
+    await this.breakpoint();
     return env.lookup(this.loc, this.name).value;
   }
 }
@@ -214,7 +221,10 @@ class AssignmentExpression extends Expression {
   }
   
   async evaluate(env) {
-    return (await this.lhs.evaluateBinding(env)).setValue(await this.rhs.evaluate(env));
+    let lhs = await this.lhs.evaluateBinding(env);
+    let rhs = await this.rhs.evaluate(env);
+    await this.breakpoint();
+    return lhs.setValue(rhs);
   }
 }
 
@@ -367,6 +377,7 @@ class NewExpression extends Expression {
   }
   
   async evaluate(env) {
+    await this.breakpoint();
     if (!has(classes, this.className))
       this.executionError("No such class: " + this.className);
     return new JavaObject(classes[this.className]);
@@ -383,6 +394,7 @@ class SelectExpression extends Expression {
   
   async evaluateBinding(env) {
     let target = await this.target.evaluate(env);
+    await this.breakpoint();
     if (!(target instanceof JavaObject))
       this.executionError("Cannot access field of " + target);
     if (!has(target.fields, this.selector))
@@ -410,6 +422,7 @@ class CallExpression extends Expression {
       let args = [];
       for (let e of this.arguments)
         args.push(await e.evaluate(env));
+      await this.breakpoint();
       return await method.call(this.loc, args);
     }
     this.executionError("Callee expression must be a name");
@@ -449,6 +462,7 @@ class VariableDeclarationStatement extends Statement {
     if (env.tryLookup(this.name) != null)
       throw new ExecutionError(this.nameLoc, "Variable '"+this.name+"' already exists in this scope.");
     let v = await this.init.evaluate(env);
+    await this.breakpoint();
     env.bindings[this.name] = new LocalBinding(this, v);
   }
 }
@@ -1063,4 +1077,32 @@ async function evaluateExpression() {
     resultsEditor.scrollIntoView({line: lastLine});
   });
   updateMachineView();
+}
+
+function markLoc(loc, className) {
+  let text = loc.doc.getValue();
+  return loc.doc.markText(getTextCoordsFromOffset(text, loc.start), getTextCoordsFromOffset(text, loc.end), {className});
+}
+
+let currentNode = null;
+let currentInstructionMark = null;
+let resumeFunc = null;
+
+function checkBreakpoint(node) {
+  return new Promise((resolve, reject) => {
+    currentInstructionMark = markLoc(node.instrLoc, "current-instruction");
+    resumeFunc = () => {
+      currentInstructionMark.clear();
+      resolve();
+    };
+    currentNode = node;
+  });
+}
+
+function step() {
+  let node = currentNode;
+  let f = resumeFunc;
+  currentNode = null;
+  resumeFunc = null;
+  f();
 }
