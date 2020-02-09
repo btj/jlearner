@@ -88,18 +88,17 @@
     });
     declarationsEditor.setSize("100%", "15em");
     declarationsEditor.setValue(
-      "class Node {\n" +
-      "  Node next;\n" +
-      "}\n" +
-      "Node reverse(Node n) {\n" +
-      "  Node result = null;\n" +
-      "  while (n != null) {\n" +
-      "    Node next = n.next;\n" +
-      "    n.next = result;\n" +
-      "    result = n;\n" +
-      "    n = next;\n" +
+      "int binarySearch(int[] xs, int x) {\n" +
+      "  int low = 0;\n" +
+      "  int high = xs.length;\n" +
+      "  while (low < high) {\n" +
+      "    int mid = low + (high - low) / 2;\n" +
+      "    if (xs[mid] < x)\n" +
+      "      low = mid + 1;\n" +
+      "    else\n" +
+      "      high = mid;\n" +
       "  }\n" +
-      "  return result;\n" +
+      "  return low;\n" +
       "}");
     declarationsEditor.on('changes', () => clearErrorWidgets());
     var statementsEditor = CodeMirror.fromTextArea(document.getElementById('statements'), {
@@ -108,10 +107,7 @@
       mode: 'text/x-java'
     });
     statementsEditor.setValue(
-      "Node n3 = new Node();\n" +
-      "Node n2 = new Node(); n2.next = n3;\n" +
-      "Node n1 = new Node(); n1.next = n2;\n" +
-      "Node r = reverse(n1);");
+      "int[] xs = {1, 7, 20, 33, 50};");
     statementsEditor.on('changes', () => clearErrorWidgets());
     statementsEditor.setSize("100%", "10em");
     statementsEditor.on('keydown', (editor, event) => {
@@ -122,7 +118,7 @@
       matchBrackets: true,
       mode: 'text/x-java'
     });
-    expressionEditor.setValue("r = reverse(r)");
+    expressionEditor.setValue("binarySearch(xs, 20)");
     expressionEditor.on('changes', () => clearErrorWidgets());
     expressionEditor.setSize("100%", "3em");
     var resultsEditor = CodeMirror.fromTextArea(document.getElementById('results'), {

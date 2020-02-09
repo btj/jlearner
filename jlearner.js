@@ -109,7 +109,7 @@ class LocalBinding {
   }
 
   getNameHTML() {
-    return this.declaration.type.toHTML() + " " + this.declaration.name;
+    return this.declaration.type.resolve().toHTML() + " " + this.declaration.name;
   }
 }
 
@@ -403,17 +403,15 @@ class FieldBinding {
 }
 
 class JavaObject {
-  constructor(class_) {
+  constructor(type, fields) {
     this.id = ++objectsCount;
-    this.class_ = class_;
-    this.fields = {};
-    for (let field in class_.fields)
-      this.fields[field] = new FieldBinding(class_.fields[field].type.defaultValue());
+    this.type = type;
+    this.fields = fields;
     this.domNode = createHeapObjectDOMNode(this);
   }
-  
+
   toString() {
-    return this.class_.name + " (id=" + this.id + ")";
+    return this.type.toString() + " (id=" + this.id + ")";
   }
   
   mark() {
@@ -439,6 +437,34 @@ class JavaObject {
   }
 }
 
+function initialClassFieldBindings(class_) {
+  let fields = {};
+  for (let field in class_.fields)
+    this.fields[field] = new FieldBinding(class_.fields[field].type.resolve().defaultValue());
+  return fields;
+}
+
+class JavaClassObject extends JavaObject {
+  constructor(class_) {
+    super(class_.type, initialClassFieldBindings(class_));
+    this.class_ = class_;
+  }
+}
+
+function initialArrayFieldBindings(initialContents) {
+  let fields = {};
+  for (let i = 0; i < initialContents.length; i++)
+    fields[i] = new FieldBinding(initialContents[i]);
+  return fields;
+}
+
+class JavaArrayObject extends JavaObject {
+  constructor(elementType, initialContents) {
+    super(new ArrayType(elementType), initialArrayFieldBindings(initialContents));
+    this.length = initialContents.length;
+  }
+}
+
 class NewExpression extends Expression {
   constructor(loc, instrLoc, className) {
     super(loc, instrLoc);
@@ -449,7 +475,48 @@ class NewExpression extends Expression {
     await this.breakpoint();
     if (!has(classes, this.className))
       this.executionError("No such class: " + this.className);
-    this.push(new JavaObject(classes[this.className]));
+    this.push(new JavaClassObject(classes[this.className]));
+  }
+}
+
+class NewArrayExpression extends Expression {
+  constructor(loc, instrLoc, elementType, lengthExpr) {
+    super(loc, instrLoc);
+    this.elementType = elementType;
+    this.lengthExpr = lengthExpr;
+  }
+
+  async evaluate(env) {
+    await this.lengthExpr.evaluate(env);
+    await this.breakpoint();
+    let [length] = pop(1);
+    if (length < 0)
+      this.executionError("Negative array length");
+    this.elementType.resolve();
+    this.push(new JavaArrayObject(this.elementType.type, Array(length).fill(this.elementType.type.defaultValue())));
+  }
+}
+
+class NewArrayWithInitializerExpression extends Expression {
+  constructor(loc, instrLoc, elementType, elementExpressions) {
+    super(loc, instrLoc);
+    this.elementType = elementType;
+    this.elementExpressions = elementExpressions;
+  }
+
+  async evaluate(env) {
+    for (let e of this.elementExpressions)
+      await e.evaluate(env);
+    await this.breakpoint();
+    let elements = pop(this.elementExpressions.length);
+    this.elementType.resolve();
+    this.push(new JavaArrayObject(this.elementType.type, elements));
+  }
+}
+
+class ReadOnlyBinding {
+  constructor(value) {
+    this.value = value;
   }
 }
 
@@ -461,18 +528,54 @@ class SelectExpression extends Expression {
     this.selector = selector;
   }
   
-  async evaluateBinding(env) {
+  async evaluateBinding(env, allowReadOnly) {
     await this.target.evaluate(env);
     return () => {
       let [target] = pop(1);
+      if (target instanceof JavaArrayObject) {
+        if (this.selector != "length")
+          this.executionError(target + " does not have a field named '" + this.selector + "'");
+        if (allowReadOnly !== true)
+          this.executionError("Cannot modify an array's length");
+        return new ReadOnlyBinding(target.length);
+      }
       if (!(target instanceof JavaObject))
-        this.executionError("Cannot access field of " + target);
+        this.executionError(target + " is not an object");
       if (!has(target.fields, this.selector))
         this.executionError("Target does not have a field named " + this.selector);
       return target.fields[this.selector];
     }
   }
   
+  async evaluate(env) {
+    let bindingThunk = await this.evaluateBinding(env, true);
+    await this.breakpoint();
+    this.push(bindingThunk().value);
+  }
+}
+
+class SubscriptExpression extends Expression {
+  constructor(loc, instrLoc, target, index) {
+    super(loc, instrLoc);
+    this.target = target;
+    this.index = index;
+  }
+
+  async evaluateBinding(env) {
+    await this.target.evaluate(env);
+    await this.index.evaluate(env);
+    return () => {
+      let [target, index] = pop(2);
+      if (!(target instanceof JavaArrayObject))
+        this.executionError(target + " is not an array");
+      if (index < 0)
+        this.executionError("Negative array index " + index);
+      if (target.length <= index)
+        this.executionError("Array index " + index + " not less than array length " + target.length);
+      return target.fields[index];
+    }
+  }
+
   async evaluate(env) {
     let bindingThunk = await this.evaluateBinding(env);
     await this.breakpoint();
@@ -504,23 +607,98 @@ class CallExpression extends Expression {
   }
 }
 
+class Type {
+  constructor() {}
+  toHTML() {
+    let text = this.toString();
+    if (has(keywords, text))
+      return "<span class='keyword'>" + text + "</span>";
+    return text;
+  }
+}
+
+class IntType extends Type {
+  constructor() { super(); }
+  defaultValue() { return 0; }
+  toString() { return "int"; }
+}
+
+let intType = new IntType();
+
+class VoidType extends Type {
+  constructor() { super(); }
+  toString() { return "void"; }
+}
+
+let voidType = new VoidType();
+
+class BooleanType extends Type {
+  constructor() { super(); }
+  defaultValue() { return false; }
+  toString() { return "boolean"; }
+}
+
+let booleanType = new BooleanType();
+
+class ReferenceType extends Type {
+  constructor() { super(); }
+  defaultValue() { return null; }
+}
+
+class ClassType extends ReferenceType {
+  constructor(class_) {
+    super();
+    this.class_ = class_;
+  }
+  toString() { return this.class_.name; }
+}
+
+class ArrayType extends ReferenceType {
+  constructor(elementType) {
+    super();
+    this.elementType = elementType;
+  }
+  toString() { return this.elementType.toString() + "[]"; }
+  toHTML() { return this.elementType.toHTML() + "[]"; }
+}
+
 class TypeExpression extends ASTNode {
-  constructor(loc, name) {
+  constructor(loc) {
     super(loc, loc);
+  }
+}
+
+class LiteralTypeExpression extends TypeExpression {
+  constructor(loc, type) {
+    super(loc);
+    this.type = type;
+  }
+  resolve() {
+    return this.type;
+  }
+}
+
+class ClassTypeExpression extends TypeExpression {
+  constructor(loc, name) {
+    super(loc);
     this.name = name;
   }
-  
-  defaultValue() {
-    switch (this.name) {
-      case 'int': return 0;
-      default: return null;
-    }
+  resolve() {
+    if (!has(classes, this.name))
+      throw new LocError(this.loc, "No such class");
+    return this.type = classes[this.name].type;;
   }
+}
 
-  toHTML() {
-    if (has(keywords, this.name))
-      return "<span class='keyword'>" + this.name + "</span>";
-    return this.name;
+class ArrayTypeExpression extends TypeExpression {
+  constructor(loc, elementTypeExpression) {
+    super(loc);
+    this.elementTypeExpression = elementTypeExpression;
+  }
+  resolve() {
+    this.elementType = this.elementTypeExpression.resolve();
+    this.type = new ArrayType(this.elementType);
+    return this.type;
   }
 }
 
@@ -617,6 +795,25 @@ class WhileStatement extends Statement {
       result = await this.body.execute(env);
     }
     return result;
+  }
+}
+
+class IfStatement extends Statement {
+  constructor(loc, instrLoc, condition, thenBody, elseBody) {
+    super(loc, instrLoc);
+    this.condition = condition;
+    this.thenBody = thenBody;
+    this.elseBody = elseBody;
+  }
+
+  async execute(env) {
+    await this.condition.evaluate(env);
+    await this.breakpoint();
+    let [b] = pop(1);
+    if (b)
+      return await this.thenBody.execute(env);
+    else if (this.elseBody != null)
+      return await this.elseBody.execute(env);
   }
 }
 
@@ -813,11 +1010,20 @@ class Parser {
               args.push(this.parseExpression());
               if (this.token != ',')
                 break;
-              this.eat();
+              this.next();
             }
           }
           this.expect(')');
           e = new CallExpression(this.dupLoc(), instrLoc, e, args);
+          break;
+        }
+        case '[': {
+          this.pushStart();
+          this.next();
+          let instrLoc = this.popLoc();
+          let index = this.parseExpression();
+          this.expect(']');
+          e = new SubscriptExpression(this.dupLoc(), instrLoc, e, index);
           break;
         }
         default:
@@ -910,20 +1116,42 @@ class Parser {
   parseExpression() {
     return this.parseAssignmentExpression();
   }
-  
-  tryParseType() {
+
+  tryParsePrimaryType() {
     this.pushStart();
     switch (this.token) {
       case "int":
         this.next();
-        return new TypeExpression(this.popLoc(), this.lastValue);
+        return new LiteralTypeExpression(this.popLoc(), intType);
+      case "boolean":
+        this.next();
+        return new LiteralTypeExpression(this.popLoc(), booleanType);
+      case "void":
+        this.next();
+        return new LiteralTypeExpression(this.popLoc(), voidType);
       case "TYPE_IDENT":
         this.next();
-        return new TypeExpression(this.popLoc(), this.lastValue);
+        return new ClassTypeExpression(this.popLoc(), this.lastValue);
       default:
         this.popLoc();
         return null;
     }
+  }
+  
+  tryParseType() {
+    this.pushStart();
+    let type = this.tryParsePrimaryType();
+    if (type == null) {
+      this.popLoc();
+      return null;
+    }
+    while (this.token == '[') {
+      this.next();
+      this.expect(']');
+      type = new ArrayTypeExpression(this.dupLoc(), type);
+    }
+    this.popLoc();
+    return type;
   }
   
   parseType() {
@@ -964,6 +1192,21 @@ class Parser {
         this.expect(';');
         return new ReturnStatement(this.popLoc(), instrLoc, e);
       }
+      case 'if': {
+        this.pushStart();
+        this.next();
+        let instrLoc = this.popLoc();
+        this.expect('(');
+        let condition = this.parseExpression();
+        this.expect(')');
+        let thenBody = this.parseStatement();
+        let elseBody = null;
+        if (this.token == 'else') {
+          this.next();
+          elseBody = this.parseStatement();
+        }
+        return new IfStatement(this.popLoc(), instrLoc, condition, thenBody, elseBody);
+      }
     }
     this.pushStart();
     let type = this.tryParseType();
@@ -973,7 +1216,27 @@ class Parser {
       let nameLoc = this.popLoc();
       this.expect("=");
       let instrLoc = this.popLoc();
-      let e = this.parseExpression();
+      let e;
+      if (this.token == '{') {
+        if (!(type instanceof ArrayTypeExpression))
+          this.parseError("Cannot initialize this variable with an array initializer; its type is not an array type.");
+        this.pushStart();
+        this.pushStart();
+        this.next();
+        let newArrayInstrLoc = this.popLoc();
+        let elementExpressions = [];
+        if (this.token != '}') {
+          for (;;) {
+            elementExpressions.push(this.parseExpression());
+            if (this.token != ',')
+              break;
+            this.next();
+          }
+        }
+        this.expect('}');
+        e = new NewArrayWithInitializerExpression(this.popLoc(), newArrayInstrLoc, type.elementTypeExpression, elementExpressions);
+      } else
+        e = this.parseExpression();
       this.expect(";");
       return new VariableDeclarationStatement(this.popLoc(), instrLoc, type, nameLoc, x, e);
     }
@@ -1032,7 +1295,7 @@ class Parser {
             parameters.push(new ParameterDeclaration(this.popLoc(), paramType, paramNameLoc, paramName));
             if (this.token != ',')
               break;
-            this.eat();
+            this.next();
           }
         }
         this.expect(')');
