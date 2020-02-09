@@ -1011,7 +1011,7 @@ function updateCallStack() {
       row.appendChild(nameCell);
       nameCell.className = "stack-variable-name";
       nameCell.innerHTML = binding.getNameHTML();
-      if (callStack.length == 1 && callStack[0].env.outerScope == null && binding instanceof LocalBinding) {
+      if (resumeFunc == null && binding instanceof LocalBinding) {
         let removeButton = document.createElement('button');
         removeButton.innerText = "Remove";
         removeButton.style.display = "none";
@@ -1162,12 +1162,12 @@ let resumeFunc = null;
 
 function checkBreakpoint(node) {
   return new Promise((resolve, reject) => {
-    updateMachineView();
     currentInstructionMark = markLoc(node.instrLoc, "current-instruction");
     resumeFunc = () => {
       currentInstructionMark.clear();
       resolve();
     };
+    updateMachineView();
   });
 }
 
