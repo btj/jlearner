@@ -699,10 +699,10 @@ class Parser {
   parsePostfixExpression() {
     this.pushStart();
     let e = this.parsePrimaryExpression();
-    this.pushStart();
     for (;;) {
       switch (this.token) {
         case '.': {
+          this.pushStart();
           this.next();
           this.pushStart();
           let x = this.expect('IDENT');
@@ -712,6 +712,7 @@ class Parser {
           break;
         }
         case '(': {
+          this.pushStart();
           this.next();
           let instrLoc = this.popLoc();
           let args = [];
@@ -729,7 +730,6 @@ class Parser {
         }
         default:
           this.popLoc();
-          this.popLoc();
           return e;
       }
     }
@@ -738,11 +738,11 @@ class Parser {
   parseMultiplicativeExpression() {
     this.pushStart();
     let e = this.parsePostfixExpression();
-    this.pushStart();
     for (;;) {
       switch (this.token) {
         case '*':
         case '/':
+          this.pushStart();
           let op = this.token;
           this.next();
           let instrLoc = this.popLoc();
@@ -750,7 +750,6 @@ class Parser {
           e = new BinaryOperatorExpression(this.dupLoc(), instrLoc, e, op, rightOperand);
           break;
         default:
-          this.popLoc();
           this.popLoc();
           return e;
       }
@@ -760,11 +759,11 @@ class Parser {
   parseAdditiveExpression() {
     this.pushStart();
     let e = this.parseMultiplicativeExpression();
-    this.pushStart();
     for (;;) {
       switch (this.token) {
         case '+':
         case '-':
+          this.pushStart();
           let op = this.token;
           this.next();
           let instrLoc = this.popLoc();
@@ -772,7 +771,6 @@ class Parser {
           e = new BinaryOperatorExpression(this.dupLoc(), instrLoc, e, op, rightOperand);
           break;
         default:
-          this.popLoc();
           this.popLoc();
           return e;
       }
@@ -782,15 +780,14 @@ class Parser {
   parseAssignmentExpression() {
     this.pushStart();
     let e = this.parseAdditiveExpression();
-    this.pushStart();
     switch (this.token) {
       case '=':
+        this.pushStart();
         this.next();
         let instrLoc = this.popLoc();
         let rightOperand = this.parseExpression();
         return new AssignmentExpression(this.popLoc(), instrLoc, e, rightOperand);
       default:
-        this.popLoc();
         this.popLoc();
         return e;
     }
@@ -930,9 +927,17 @@ function checkDeclarations(declarations) {
 }
 
 let variablesTable = document.getElementById('variables');
-let toplevelScope = new Scope(null);
-let mainStackFrame = new StackFrame("(toplevel)", toplevelScope);
-let callStack = [mainStackFrame]
+let toplevelScope;
+let mainStackFrame;
+let callStack;
+
+function resetMachine() {
+  toplevelScope = new Scope(null);
+  mainStackFrame = new StackFrame("(toplevel)", toplevelScope);
+  callStack = [mainStackFrame];
+}
+
+resetMachine();
 
 function push(binding) {
   callStack[callStack.length - 1].operands.push(binding);
@@ -1049,14 +1054,16 @@ function updateMachineView() {
   collectGarbage();
   updateCallStack();
   updateFieldArrows();
+  updateButtonStates();
 }
 
-async function executeStatements() {
+async function executeStatements(step) {
   await handleError(async () => {
     parseDeclarations();
     let stmtsText = statementsEditor.getValue();
     let parser = new Parser(statementsEditor, stmtsText);
     let stmts = parser.parseStatements({'EOF': true});
+    currentBreakCondition = () => step;
     for (let stmt of stmts) {
       await stmt.execute(toplevelScope);
     }
@@ -1134,13 +1141,14 @@ function parseDeclarations() {
   checkDeclarations(decls);
 }
 
-async function evaluateExpression() {
+async function evaluateExpression(step) {
   await handleError(async () => {
     parseDeclarations();
     let exprText = expressionEditor.getValue();
     let parser = new Parser(expressionEditor, exprText);
     let e = parser.parseExpression();
     parser.expect("EOF");
+    currentBreakCondition = () => step;
     await e.evaluate(toplevelScope);
     let [v] = pop(1);
     resultsEditor.replaceRange(exprText + "\r\n", {line: resultsEditor.lastLine()});
@@ -1157,22 +1165,105 @@ function markLoc(loc, className) {
   return loc.doc.markText(getTextCoordsFromOffset(text, loc.start), getTextCoordsFromOffset(text, loc.end), {className});
 }
 
+let currentNode = null;
+let currentBreakCondition = null;
 let currentInstructionMark = null;
 let resumeFunc = null;
 
 function checkBreakpoint(node) {
   return new Promise((resolve, reject) => {
-    currentInstructionMark = markLoc(node.instrLoc, "current-instruction");
-    resumeFunc = () => {
-      currentInstructionMark.clear();
+    if (currentBreakCondition(node)) {
+      currentNode = node;
+      currentBreakCondition = null;
+      currentInstructionMark = markLoc(node.instrLoc, "current-instruction");
+      resumeFunc = () => {
+        currentNode = null;
+        currentInstructionMark.clear();
+        resolve();
+      };
+      updateMachineView();
+    } else {
       resolve();
-    };
-    updateMachineView();
+    }
   });
 }
 
-function step() {
+function resume() {
   let f = resumeFunc;
   resumeFunc = null;
   f();
+}
+
+function isDifferentLine(loc1, loc2) {
+  if (loc1.doc != loc2.doc)
+    return true;
+  let text = loc1.doc.getValue();
+  let coords1 = getTextCoordsFromOffset(text, loc1.start);
+  let coords2 = getTextCoordsFromOffset(text, loc2.start);
+  return coords1.line != coords2.line;
+}
+
+function step() {
+  let oldNode = currentNode;
+  currentBreakCondition = node => isDifferentLine(node.loc, oldNode.loc);
+  resume();
+}
+
+function smallStep() {
+  currentBreakCondition = node => true;
+  resume();
+}
+
+function stepOver() {
+  let oldNode = currentNode;
+  let oldStackSize = callStack.length;
+  let oldStackFrame = callStack[oldStackSize - 1];
+  currentBreakCondition = node => {
+    if (callStack.length < oldStackSize || callStack[oldStackSize - 1] !== oldStackFrame)
+      return true;
+    if (callStack.length > oldStackSize)
+      return false;
+    return isDifferentLine(node.loc, oldNode.loc);
+  };
+  resume();
+}
+
+function stepOut() {
+  let oldStackSize = callStack.length;
+  let oldStackFrame = callStack[oldStackSize - 1];
+  currentBreakCondition = node => {
+    return callStack.length < oldStackSize || callStack[oldStackSize - 1] !== oldStackFrame;
+  };
+  resume();
+}
+
+function continue_() {
+  currentBreakCondition = node => false;
+  resume();
+}
+
+function reset() {
+  currentNode = null;
+  if (currentInstructionMark != null) {
+    currentInstructionMark.clear();
+    currentInstructionMark = null;
+  }
+  resumeFunc = null;
+
+  resetMachine();
+  updateMachineView();
+}
+
+function updateButtonStates() {
+  let stepping = resumeFunc != null;
+  document.getElementById('executeButton').disabled = stepping;
+  document.getElementById('stepThroughStatementsButton').disabled = stepping;
+  document.getElementById('evaluateButton').disabled = stepping;
+  document.getElementById('stepThroughExpressionButton').disabled = stepping;
+
+  document.getElementById('stepButton').disabled = !stepping;
+  document.getElementById('smallStepButton').disabled = !stepping;
+  document.getElementById('stepOverButton').disabled = !stepping;
+  document.getElementById('stepOutButton').disabled = !stepping;
+  document.getElementById('continueButton').disabled = !stepping;
 }

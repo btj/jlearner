@@ -34,15 +34,21 @@
     <td width="50%" style="vertical-align: top">
       <p><b>Declarations:</b></p>
       <p><textarea id="declarations"></textarea></p>
-      <p><b>Statements:</b> <button onClick="executeStatements()">Execute (Ctrl+Enter)</button></p>
+      <p><b>Statements:</b> <button id="executeButton" onClick="executeStatements(false)">Execute (Ctrl+Enter)</button> <button id="stepThroughStatementsButton" onclick="executeStatements(true)">Step through</button></p>
       <p><textarea id="statements"></textarea></p>
-      <p><b>Expression:</b> <button onClick="evaluateExpression()">Evaluate (Ctrl+Enter)</button></p>
+      <p><b>Expression:</b> <button id="evaluateButton" onClick="evaluateExpression()">Evaluate (Ctrl+Enter)</button> <button id="stepThroughExpressionButton" onclick="evaluateExpression(true)">Step through</button></p>
       <p><textarea id="expression"></textarea></p>
       <p><b>Results:</b> <button onClick="resultsEditor.setValue('')">Clear</button></p>
       <p><textarea id="results"></textarea></p>
     </td>
     <td id="machine" height="100%" style="vertical-align: top; padding-left: 20px">
-      <p><button onclick="step()">Step</button> <button onclick="stepOver()">Step over</button> <button onClick="stepOut()">Step out</button> <button onclick="continue_()">Continue</button> <button onclick="reset()">Reset</button></p>
+      <p>
+        <button id="stepButton" onclick="step()" disabled>Step</button>
+        <button id="smallStepButton" onclick="smallStep()" disabled>Small step</button>
+        <button id="stepOverButton" onclick="stepOver()" disabled>Step over</button>
+        <button id="stepOutButton" onClick="stepOut()" disabled>Step out</button>
+        <button id="continueButton" onclick="continue_()" disabled>Continue</button>
+        <button onclick="reset()">Reset</button></p>
       <div style="position: relative; display: flex; flex-direction: row; align-items: stretch">
             <table id="callstack" style="background-color: lightgreen; border: 2px solid black; border-collapse: collapse">
             </table>
@@ -81,16 +87,19 @@
       mode: 'text/x-java'
     });
     declarationsEditor.setSize("100%", "15em");
-    declarationsEditor.setValue("class Foo { int a; int b; }\nint foo(Foo f) { f.a = f.a + 1; }");
+    declarationsEditor.setValue("class Foo { int a; int b; }\nint foo(Foo f) {\n  f.a = f.a + 1;\n}");
     declarationsEditor.on('changes', () => clearErrorWidgets());
     var statementsEditor = CodeMirror.fromTextArea(document.getElementById('statements'), {
       lineNumbers: false,
       matchBrackets: true,
       mode: 'text/x-java'
     });
-    statementsEditor.setValue("Foo x = new Foo(); foo(x);");
+    statementsEditor.setValue("Foo x = new Foo();\nfoo(x);");
     statementsEditor.on('changes', () => clearErrorWidgets());
     statementsEditor.setSize("100%", "10em");
+    statementsEditor.on('keydown', (editor, event) => {
+      if (event.keyCode == 13 && event.ctrlKey) executeStatements(false);
+    });
     var expressionEditor = CodeMirror.fromTextArea(document.getElementById('expression'), {
       lineNumbers: false,
       matchBrackets: true,
@@ -105,7 +114,7 @@
     });
     resultsEditor.setSize("100%", "10em");
     expressionEditor.on('keydown', (editor, event) => {
-      if (event.keyCode == 13 && event.ctrlKey) evaluateExpression();
+      if (event.keyCode == 13 && event.ctrlKey) evaluateExpression(false);
     });
   </script>
       <!-- script>
