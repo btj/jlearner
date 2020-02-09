@@ -88,17 +88,9 @@
     });
     declarationsEditor.setSize("100%", "15em");
     declarationsEditor.setValue(
-      "int binarySearch(int[] xs, int x) {\n" +
-      "  int low = 0;\n" +
-      "  int high = xs.length;\n" +
-      "  while (low < high) {\n" +
-      "    int mid = low + (high - low) / 2;\n" +
-      "    if (xs[mid] < x)\n" +
-      "      low = mid + 1;\n" +
-      "    else\n" +
-      "      high = mid;\n" +
-      "  }\n" +
-      "  return low;\n" +
+      "void incrementAll(int[] xs) {\n" +
+      "  for (int i = 0; i < xs.length; i++)\n" +
+      "    xs[i] += 5;\n" +
       "}");
     declarationsEditor.on('changes', () => clearErrorWidgets());
     var statementsEditor = CodeMirror.fromTextArea(document.getElementById('statements'), {
@@ -107,7 +99,7 @@
       mode: 'text/x-java'
     });
     statementsEditor.setValue(
-      "int[] xs = {1, 7, 20, 33, 50};");
+      "int[] xs = new int[7];");
     statementsEditor.on('changes', () => clearErrorWidgets());
     statementsEditor.setSize("100%", "10em");
     statementsEditor.on('keydown', (editor, event) => {
@@ -118,7 +110,7 @@
       matchBrackets: true,
       mode: 'text/x-java'
     });
-    expressionEditor.setValue("binarySearch(xs, 20)");
+    expressionEditor.setValue("incrementAll(xs)");
     expressionEditor.on('changes', () => clearErrorWidgets());
     expressionEditor.setSize("100%", "3em");
     var resultsEditor = CodeMirror.fromTextArea(document.getElementById('results'), {

@@ -249,9 +249,10 @@ class Expression extends ASTNode {
 }
 
 class IntLiteral extends Expression {
-  constructor(loc, value) {
+  constructor(loc, value, silent) {
     super(loc, loc);
     this.value = value;
+    this.silent = silent;
   }
 
   check(env) {
@@ -259,8 +260,27 @@ class IntLiteral extends Expression {
   }
 
   async evaluate(env) {
-    await this.breakpoint();
+    if (this.silent !== true)
+      await this.breakpoint();
     this.push(+this.value);
+  }
+}
+
+class BooleanLiteral extends Expression {
+  constructor(loc, value, silent) {
+    super(loc, loc);
+    this.value = value;
+    this.silent = silent;
+  }
+
+  check(env) {
+    return booleanType;
+  }
+
+  async evaluate(env) {
+    if (this.silent !== true)
+      await this.breakpoint();
+    this.push(this.value);
   }
 }
 
@@ -362,15 +382,40 @@ class VariableExpression extends Expression {
 }
 
 class AssignmentExpression extends Expression {
-  constructor(loc, instrLoc, lhs, rhs) {
+  constructor(loc, instrLoc, lhs, op, rhs) {
     super(loc, instrLoc);
     this.lhs = lhs;
+    this.op = op;
     this.rhs = rhs;
   }
 
   check(env) {
-    let t = this.lhs.check_(env);
-    this.rhs.checkAgainst(env, t);
+    if (this.op == '=') {
+      let t = this.lhs.check_(env);
+      this.rhs.checkAgainst(env, t);
+    } else  {
+      this.lhs.checkAgainst(env, intType);
+      this.rhs.checkAgainst(env, intType);
+    }
+  }
+
+  evaluateOperator(lhs, rhs) {
+    switch (this.op) {
+      case '=': return rhs;
+      case '+=': return (lhs + rhs)|0;
+      case '-=': return (lhs - rhs)|0;
+      case '*=': return (lhs * rhs)|0;
+      case '/=': return (lhs / rhs)|0;
+      case '%=': return (lhs % rhs)|0;
+      case '&=': return lhs & rhs;
+      case '|=': return lhs | rhs;
+      case '^=': return lhs ^ rhs;
+      case '>>=': return lhs >> rhs;
+      case '>>>=': return lhs >>> rhs;
+      case '<<=': return lhs << rhs;
+      default:
+        this.executionError("Operator not supported");
+    }
   }
   
   async evaluate(env) {
@@ -379,7 +424,33 @@ class AssignmentExpression extends Expression {
     await this.breakpoint();
     let [rhs] = pop(1);
     let lhs = bindingThunk();
-    this.push(lhs.setValue(rhs));
+    let result = this.evaluateOperator(lhs.value, rhs);
+    this.push(lhs.setValue(result));
+  }
+}
+
+class IncrementExpression extends Expression {
+  constructor(loc, instrLoc, operand, isDecrement, isPostfix) {
+    super(loc, instrLoc);
+    this.operand = operand;
+    this.isDecrement = isDecrement;
+    this.isPostfix = isPostfix;
+  }
+
+  check(env) {
+    this.operand.checkAgainst(env, intType);
+  }
+
+  async evaluate(env) {
+    let bindingThunk = await this.operand.evaluateBinding(env);
+    await this.breakpoint();
+    let lhs = bindingThunk();
+    let oldValue = lhs.value;
+    if (this.isDecrement)
+      lhs.value = (lhs.value - 1)|0;
+    else
+      lhs.value = (lhs.value + 1)|0;
+    this.push(this.isPostfix ? oldValue : lhs.value);
   }
 }
 
@@ -1206,10 +1277,50 @@ class Parser {
       case "new":
         this.next();
         let instrLoc = this.dupLoc();
-        let className = this.expect('TYPE_IDENT');
+        let type = this.tryParsePrimaryType();
+        if (type == null)
+          this.parseError("Type expected");
+        if (this.token == '[') {
+          this.next();
+          let lengthExpr = null;
+          if (this.token != ']')
+            lengthExpr = this.parseExpression();
+          this.expect(']');
+          while (this.token == '[') {
+            this.next();
+            this.expect(']');
+            type = new ArrayTypeExpression(type.loc, type);
+          }
+          let elementExpressions = null;
+          if (this.token == '{') {
+            this.next();
+            elementExpressions = [];
+            if (this.token != '}') {
+              for (;;) {
+                elementExpressions.push(this.parseExpression());
+                if (this.token != ',')
+                  break;
+                this.next();
+              }
+            }
+            this.expect('}');
+          }
+          let loc = this.popLoc();
+          if (lengthExpr != null) {
+            if (elementExpressions != null)
+              throw new LocError(loc, "Mention either a length or an initializer; not both.");
+            return new NewArrayExpression(loc, instrLoc, type, lengthExpr);
+          } else {
+            if (elementExpressions == null)
+              throw new LocError(loc, "Mention either a length or an initializer");
+            return new NewArrayWithInitializerExpression(loc, instrLoc, type, elementExpressions);
+          }
+        }
+        if (!(type instanceof ClassTypeExpression))
+          throw new LocError(type.loc, "Class type expected");
         this.expect('(');
         this.expect(')');
-        return new NewExpression(this.popLoc(), instrLoc, className);
+        return new NewExpression(this.popLoc(), instrLoc, type.name);
       case "(":
         this.next();
         let e = this.parseExpression();
@@ -1219,6 +1330,15 @@ class Parser {
       case "null":
         this.next();
         return new NullLiteral(this.popLoc());
+      case "++":
+      case "--": {
+        this.pushStart();
+        let op = this.token;
+        this.next();
+        let instrLoc = this.popLoc();
+        let e = this.parsePostfixExpression();
+        return new IncrementExpression(this.popLoc(), instrLoc, e, op == '--', false);
+      }
       default:
         this.parseError("Number or identifier expected");
     }
@@ -1263,6 +1383,15 @@ class Parser {
           let index = this.parseExpression();
           this.expect(']');
           e = new SubscriptExpression(this.dupLoc(), instrLoc, e, index);
+          break;
+        }
+        case '++':
+        case '--': {
+          this.pushStart();
+          let op = this.token;
+          this.next();
+          let instrLoc = this.popLoc();
+          e = new IncrementExpression(this.dupLoc(), instrLoc, e, op == '--', true);
           break;
         }
         default:
@@ -1341,11 +1470,23 @@ class Parser {
     let e = this.parseRelationalExpression();
     switch (this.token) {
       case '=':
+      case '+=':
+      case '-=':
+      case '*=':
+      case '/=':
+      case '%=':
+      case '>>=':
+      case '<<=':
+      case '>>>=':
+      case '|=':
+      case '&=':
+      case '^=':
         this.pushStart();
+        let op = this.token;
         this.next();
         let instrLoc = this.popLoc();
         let rightOperand = this.parseExpression();
-        return new AssignmentExpression(this.popLoc(), instrLoc, e, rightOperand);
+        return new AssignmentExpression(this.popLoc(), instrLoc, e, op, rightOperand);
       default:
         this.popLoc();
         return e;
@@ -1418,6 +1559,39 @@ class Parser {
         this.expect(')');
         let body = this.parseStatement();
         return new WhileStatement(this.popLoc(), instrLoc, condition, body);
+      }
+      case 'for': {
+        this.pushStart();
+        this.next();
+        let instrLoc = this.popLoc();
+        this.expect('(');
+        let stmts = [];
+        if (this.token != ';')
+          stmts.push(this.parseStatement());
+        else
+          this.next();
+        let condition;
+        if (this.token == ';')
+          condition = new BooleanLiteral(instrLoc, true, true);
+        else
+          condition = this.parseExpression();
+        this.expect(';');
+        let incrs = [];
+        if (this.token != ')')
+          for (;;) {
+            incrs.push(this.parseExpression());
+            if (this.token != ',')
+              break;
+            this.next();
+          }
+        this.expect(')');
+        let body = this.parseStatement();
+        let loc = this.popLoc();
+        let bodyStmts = [body];
+        for (let incr of incrs)
+          bodyStmts.push(new ExpressionStatement(incr.loc, incr.instrLoc, incr));
+        stmts.push(new WhileStatement(loc, instrLoc, condition, new BlockStatement(loc, bodyStmts)));
+        return new BlockStatement(loc, stmts);
       }
       case 'return': {
         this.pushStart();
