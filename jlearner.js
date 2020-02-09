@@ -139,18 +139,19 @@ class Scope {
 }
 
 class ASTNode {
-  constructor(loc) {
+  constructor(loc, instrLoc) {
     this.loc = loc;
+    this.instrLoc = instrLoc;
   }
   
   executionError(msg) {
-    throw new ExecutionError(this.loc, msg);
+    throw new ExecutionError(this.instrLoc, msg);
   }
 }
 
 class Expression extends ASTNode {
-  constructor(loc) {
-    super(loc);
+  constructor(loc, instrLoc) {
+    super(loc, instrLoc);
   }
   
   async evaluateBinding(env) {
@@ -160,7 +161,7 @@ class Expression extends ASTNode {
 
 class IntLiteral extends Expression {
   constructor(loc, value) {
-    super(loc);
+    super(loc, loc);
     this.value = value;
   }
 
@@ -170,8 +171,8 @@ class IntLiteral extends Expression {
 }
 
 class BinaryOperatorExpression extends Expression {
-  constructor(loc, leftOperand, operator, rightOperand) {
-    super(loc);
+  constructor(loc, instrLoc, leftOperand, operator, rightOperand) {
+    super(loc, instrLoc);
     this.leftOperand = leftOperand;
     this.operator = operator;
     this.rightOperand = rightOperand;
@@ -192,7 +193,7 @@ class BinaryOperatorExpression extends Expression {
 
 class VariableExpression extends Expression {
   constructor(loc, name) {
-    super(loc);
+    super(loc, loc);
     this.name = name;
   }
   
@@ -206,8 +207,8 @@ class VariableExpression extends Expression {
 }
 
 class AssignmentExpression extends Expression {
-  constructor(loc, lhs, rhs) {
-    super(loc);
+  constructor(loc, instrLoc, lhs, rhs) {
+    super(loc, instrLoc);
     this.lhs = lhs;
     this.rhs = rhs;
   }
@@ -360,8 +361,8 @@ class JavaObject {
 }
 
 class NewExpression extends Expression {
-  constructor(loc, className) {
-    super(loc);
+  constructor(loc, instrLoc, className) {
+    super(loc, instrLoc);
     this.className = className;
   }
   
@@ -373,8 +374,8 @@ class NewExpression extends Expression {
 }
 
 class SelectExpression extends Expression {
-  constructor(loc, target, selectorLoc, selector) {
-    super(loc);
+  constructor(loc, instrLoc, target, selectorLoc, selector) {
+    super(loc, instrLoc);
     this.target = target;
     this.selectorLoc = selectorLoc;
     this.selector = selector;
@@ -385,18 +386,18 @@ class SelectExpression extends Expression {
     if (!(target instanceof JavaObject))
       this.executionError("Cannot access field of " + target);
     if (!has(target.fields, this.selector))
-      this.executionError("Target does not have a field named " + selector);
+      this.executionError("Target does not have a field named " + this.selector);
     return target.fields[this.selector];
   }
   
-  evaluate(env) {
-    return this.evaluateBinding(env).value;
+  async evaluate(env) {
+    return (await this.evaluateBinding(env)).value;
   }
 }
 
 class CallExpression extends Expression {
-  constructor(loc, callee, args) {
-    super(loc);
+  constructor(loc, instrLoc, callee, args) {
+    super(loc, instrLoc);
     this.callee = callee;
     this.arguments = args;
   }
@@ -417,7 +418,7 @@ class CallExpression extends Expression {
 
 class TypeExpression extends ASTNode {
   constructor(loc, name) {
-    super(loc);
+    super(loc, loc);
     this.name = name;
   }
   
@@ -430,14 +431,14 @@ class TypeExpression extends ASTNode {
 }
 
 class Statement extends ASTNode {
-  constructor(loc) {
-    super(loc);
+  constructor(loc, instrLoc) {
+    super(loc, instrLoc);
   }
 }
 
 class VariableDeclarationStatement extends Statement {
-  constructor(loc, type, nameLoc, name, init) {
-    super(loc);
+  constructor(loc, instrLoc, type, nameLoc, name, init) {
+    super(loc, instrLoc);
     this.type = type;
     this.nameLoc = nameLoc;
     this.name = name;
@@ -453,8 +454,8 @@ class VariableDeclarationStatement extends Statement {
 }
 
 class ExpressionStatement extends Statement {
-  constructor(loc, expr) {
-    super(loc);
+  constructor(loc, instrLoc, expr) {
+    super(loc, instrLoc);
     this.expr = expr;
   }
   
@@ -465,11 +466,11 @@ class ExpressionStatement extends Statement {
 
 class Declaration extends ASTNode {
   constructor(loc) {
-    super(loc);
+    super(loc, null);
   }
 }
 
-class ParameterDeclaration extends ASTNode {
+class ParameterDeclaration extends Declaration {
   constructor(loc, type, nameLoc, name) {
     super(loc);
     this.type = type;
@@ -600,10 +601,11 @@ class Parser {
         return new VariableExpression(this.popLoc(), this.lastValue);
       case "new":
         this.next();
+        let instrLoc = this.dupLoc();
         let className = this.expect('TYPE_IDENT');
         this.expect('(');
         this.expect(')');
-        return new NewExpression(this.popLoc(), className);
+        return new NewExpression(this.popLoc(), instrLoc, className);
       case "(":
         this.next();
         let e = this.parseExpression();
@@ -618,17 +620,21 @@ class Parser {
   parsePostfixExpression() {
     this.pushStart();
     let e = this.parsePrimaryExpression();
+    this.pushStart();
     for (;;) {
       switch (this.token) {
-        case '.':
+        case '.': {
           this.next();
           this.pushStart();
           let x = this.expect('IDENT');
           let nameLoc = this.popLoc();
-          e = new SelectExpression(this.dupLoc(), e, nameLoc, x);
+          let instrLoc = this.popLoc();
+          e = new SelectExpression(this.dupLoc(), instrLoc, e, nameLoc, x);
           break;
-        case '(':
+        }
+        case '(': {
           this.next();
+          let instrLoc = this.popLoc();
           let args = [];
           if (this.token != ')') {
             for (;;) {
@@ -639,9 +645,11 @@ class Parser {
             }
           }
           this.expect(')');
-          e = new CallExpression(this.dupLoc(), e, args);
+          e = new CallExpression(this.dupLoc(), instrLoc, e, args);
           break;
+        }
         default:
+          this.popLoc();
           this.popLoc();
           return e;
       }
@@ -651,16 +659,19 @@ class Parser {
   parseMultiplicativeExpression() {
     this.pushStart();
     let e = this.parsePostfixExpression();
+    this.pushStart();
     for (;;) {
       switch (this.token) {
         case '*':
         case '/':
           let op = this.token;
           this.next();
+          let instrLoc = this.popLoc();
           let rightOperand = this.parsePostfixExpression();
-          e = new BinaryOperatorExpression(this.dupLoc(), e, op, rightOperand);
+          e = new BinaryOperatorExpression(this.dupLoc(), instrLoc, e, op, rightOperand);
           break;
         default:
+          this.popLoc();
           this.popLoc();
           return e;
       }
@@ -670,16 +681,19 @@ class Parser {
   parseAdditiveExpression() {
     this.pushStart();
     let e = this.parseMultiplicativeExpression();
+    this.pushStart();
     for (;;) {
       switch (this.token) {
         case '+':
         case '-':
           let op = this.token;
           this.next();
+          let instrLoc = this.popLoc();
           let rightOperand = this.parseMultiplicativeExpression();
-          e = new BinaryOperatorExpression(this.dupLoc(), e, op, rightOperand);
+          e = new BinaryOperatorExpression(this.dupLoc(), instrLoc, e, op, rightOperand);
           break;
         default:
+          this.popLoc();
           this.popLoc();
           return e;
       }
@@ -689,12 +703,15 @@ class Parser {
   parseAssignmentExpression() {
     this.pushStart();
     let e = this.parseAdditiveExpression();
+    this.pushStart();
     switch (this.token) {
       case '=':
         this.next();
+        let instrLoc = this.popLoc();
         let rightOperand = this.parseExpression();
-        return new AssignmentExpression(this.popLoc(), e, rightOperand);
+        return new AssignmentExpression(this.popLoc(), instrLoc, e, rightOperand);
       default:
+        this.popLoc();
         this.popLoc();
         return e;
     }
@@ -728,19 +745,24 @@ class Parser {
   
   parseStatement() {
     this.pushStart();
+    this.pushStart();
     let type = this.tryParseType();
     if (type != null) {
       this.pushStart();
       let x = this.expect("IDENT");
       let nameLoc = this.popLoc();
       this.expect("=");
+      let instrLoc = this.popLoc();
       let e = this.parseExpression();
       this.expect(";");
-      return new VariableDeclarationStatement(this.popLoc(), type, nameLoc, x, e);
+      return new VariableDeclarationStatement(this.popLoc(), instrLoc, type, nameLoc, x, e);
     }
+    this.popLoc();
     let e = this.parseExpression();
+    this.pushStart();
     this.expect(";");
-    return new ExpressionStatement(this.popLoc(), e);
+    let instrLoc = this.popLoc();
+    return new ExpressionStatement(this.popLoc(), instrLoc, e);
   }
   
   parseStatements(terminators) {
