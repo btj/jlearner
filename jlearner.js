@@ -572,9 +572,9 @@ class ReturnStatement extends Statement {
       await this.operand.evaluate(env);
       await this.breakpoint();
       let [v] = pop(1);
-      // TODO: actually return
+      return v;
     } else {
-      // TODO: actually return
+      return "void";
     }
   }
 }
@@ -588,9 +588,14 @@ class BlockStatement extends Statement {
   async execute(env) {
     let scope = new Scope(env);
     callStack[callStack.length - 1].env = scope;
-    for (let stmt of this.stmts)
-      await stmt.execute(scope);
+    let result;
+    for (let stmt of this.stmts) {
+      result = await stmt.execute(scope);
+      if (result !== undefined)
+        break;
+    }
     callStack[callStack.length - 1].env = env;
+    return result;
   }
 }
 
@@ -602,14 +607,16 @@ class WhileStatement extends Statement {
   }
 
   async execute(env) {
-    for (;;) {
+    let result;
+    while (result === undefined) {
       await this.condition.evaluate(env);
       await this.breakpoint();
       let [b] = pop(1);
       if (!b)
         break;
-      await this.body.execute(env);
+      result = await this.body.execute(env);
     }
+    return result;
   }
 }
 
@@ -646,11 +653,18 @@ class MethodDeclaration extends Declaration {
     callStack.push(stackFrame);
     for (let i = 0; i < args.length; i++)
       env.bindings[this.parameterDeclarations[i].name] = new LocalBinding(this.parameterDeclarations[i], args[i]);
-    for (let stmt of this.bodyBlock)
-      await stmt.execute(env);
-    await checkBreakpoint(this.implicitReturnStmt);
+    let result;
+    for (let stmt of this.bodyBlock) {
+      result = await stmt.execute(env);
+      if (result !== undefined)
+        break;
+    }
+    if (result === undefined) {
+      await checkBreakpoint(this.implicitReturnStmt);
+      result = "void";
+    }
     callStack.pop();
-    push(new OperandBinding(callExpr, null));
+    push(new OperandBinding(callExpr, result));
   }
 }
 
@@ -1195,7 +1209,8 @@ async function executeStatements(step) {
     let stmts = parser.parseStatements({'EOF': true});
     currentBreakCondition = () => step;
     for (let stmt of stmts) {
-      await stmt.execute(toplevelScope);
+      if (await stmt.execute(toplevelScope) !== undefined)
+        break;
     }
   });
   updateMachineView();
