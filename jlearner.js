@@ -313,7 +313,7 @@ function computeNextObjectY() {
   
   for (let o of objectsShown) {
     let rect = o.domNode.getClientRects()[0];
-    nextObjectY = Math.max(nextObjectY, rect.bottom - svgRect.top + 5);
+    nextObjectY = Math.max(nextObjectY, rect.bottom - svgRect.top + 15);
   }
 
   return nextObjectY;
@@ -1107,8 +1107,20 @@ function createArrow(fromNode, toNode) {
   let fromY = (fromRect.top + fromRect.bottom) / 2 - svgRect.top;
   arrow.x1.baseVal.value = fromX;
   arrow.y1.baseVal.value = fromY;
-  let toX = toRect.left - svgRect.left;
-  let toY = toRect.top - svgRect.top;
+
+  let toLeft = toRect.left - svgRect.left;
+  let toRight = toRect.right - svgRect.left;
+  let toTop = toRect.top - svgRect.top;
+  let toBottom = toRect.bottom - svgRect.top;
+
+  let toX = fromX < toLeft ? toLeft : fromX < toRight ? fromX : toRight;
+  let toY = fromY < toTop ? toTop : fromY < toBottom ? fromY : toBottom;
+
+  if ((toX - fromX) * (toX - fromX) + (toY - fromY) * (toY - fromY) < 400) {
+    toX = fromX < (toLeft + toRight) / 2 ? toRight : toLeft;
+    toY = fromY < (toTop + toBottom) / 2 ? toBottom : toTop;
+  }
+
   arrow.x2.baseVal.value = toX;
   arrow.y2.baseVal.value = toY;
   arrow.style = "stroke:rgb(0,0,0);stroke-width:1";
