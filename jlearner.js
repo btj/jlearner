@@ -1126,6 +1126,25 @@ class IfStatement extends Statement {
   }
 }
 
+class AssertStatement extends Statement {
+  constructor(loc, instrLoc, condition) {
+    super(loc, instrLoc);
+    this.condition = condition;
+  }
+  
+  check(env) {
+    this.condition.checkAgainst(env, booleanType);
+  }
+  
+  async execute(env) {
+    await this.condition.evaluate(env);
+    await this.breakpoint();
+    let [b] = pop(1);
+    if (!b)
+      this.executionError("The assertion is false");
+  }
+}
+
 class Declaration extends ASTNode {
   constructor(loc) {
     super(loc, null);
@@ -1695,6 +1714,14 @@ class Parser {
         }
         return new IfStatement(this.popLoc(), instrLoc, condition, thenBody, elseBody);
       }
+      case 'assert': {
+        this.pushStart();
+        this.next();
+        let instrLoc = this.popLoc();
+        let condition = this.parseExpression();
+        this.expect(';');
+        return new AssertStatement(this.popLoc(), instrLoc, condition);
+      }
     }
     this.pushStart();
     let type = this.tryParseType();
@@ -2190,4 +2217,209 @@ function updateButtonStates() {
   document.getElementById('stepOverButton').disabled = !stepping;
   document.getElementById('stepOutButton').disabled = !stepping;
   document.getElementById('continueButton').disabled = !stepping;
+}
+
+examples = [{
+  title: 'Faculty',
+  declarations:
+`/** @pre x is positive */
+int fac(int x) {
+  if (x == 1)
+    return 1;
+  else
+    return x * fac(x - 1);
+}`,
+  statements:
+`assert fac(2) == 2;
+assert fac(4) == 24;`,
+  expression: `fac(3)`
+}, {
+  title: 'Find an element in an array',
+  declarations:
+`int find(int[] haystack, int needle) {
+  int index = 0;
+  for (;;) {
+    if (index == haystack.length)
+      return -1;
+    if (haystack[index] == needle)
+      return index;
+    index++;
+  }
+}`,
+  statements:
+`int[] numbers = {3, 13, 7, 2};
+assert find(numbers, 13) == 1;
+assert find(numbers, 8) == -1;`,
+  expression: 'find(numbers, 7)'
+}, {
+  title: 'Copy an array',
+  declarations:
+`int[] copy(int[] array) {
+  int[] copy = new int[array.length];
+  for (int i = 0; i < array.length; i++)
+    copy[i] = array[i];
+  return copy;
+}`,
+  statements:
+`int[] numbers = {10, 20, 30, 40};
+int[] numbersCopy = copy(numbers);
+assert numbersCopy != numbers;
+assert numbersCopy.length == numbers.length;
+for (int i = 0; i < numbers.length; i++)
+  assert numbersCopy[i] == numbers[i];`,
+  expression: ''
+}, {
+  title: 'Transpose a matrix (copy)',
+  declarations:
+`/** @pre The given matrix is square */
+int[][] transpose(int[][] matrix) {
+  int[][] t = new int[matrix.length][];
+  for (int row = 0; row < matrix.length; row++)
+    t[row] = new int[matrix.length];
+  for (int row = 0; row < matrix.length; row++)
+    for (int column = 0; column < matrix.length; column++)
+      t[column][row] = matrix[row][column];
+  return t;
+}`,
+  statements:
+`int[][] myMatrix = {
+  new int[] {1, 2, 3},
+  new int[] {4, 5, 6},
+  new int[] {7, 8, 9}
+};
+int[][] myTranspose = transpose(myMatrix);`,
+  expressions: ''
+}, {
+  title: 'Transpose a matrix (in place)',
+  declarations:
+`/** @pre The given matrix is square */
+void transpose(int[][] matrix) {
+  for (int row = 0; row < matrix.length; row++)
+    for (int column = row + 1; column < matrix.length; column++) {
+      int element = matrix[row][column];
+      matrix[row][column] = matrix[column][row];
+      matrix[column][row] = element;
+    }
+}`,
+  statements:
+`int[][] myMatrix = {
+  new int[] {1, 2, 3},
+  new int[] {4, 5, 6},
+  new int[] {7, 8, 9}
+};
+transpose(myMatrix);`,
+  expressions: ''
+}, {
+  title: 'Account transfer',
+  declarations:
+`class Account {
+  int balance;
+}
+void transfer(Account from, Account to, int amount) {
+  from.balance -= amount;
+  to.balance += amount;
+}`,
+  statements:
+`Account account1 = new Account();
+Account account2 = new Account();
+transfer(account1, account2, 500);
+assert account1.balance == -500;
+assert account2.balance == 500;
+transfer(account1, account1, 200);
+assert account1.balance == 200;`,
+  expression: ''
+}, {
+  title: 'Linked list: sum (iterative)',
+  declarations:
+`class Node {
+  int value;
+  Node next;
+}
+int sum(Node node) {
+  int sum = 0;
+  while (node != null) {
+    sum += node.value;
+    node = node.next;
+  }
+  return sum;
+}`,
+  statements:
+`Node first = new Node(); first.value = 1;
+Node second = new Node(); second.value = 2;
+Node third = new Node(); third.value = 3;
+first.next = second;
+second.next = third;
+assert sum(first) == 6;`,
+  expression: 'sum(first)'
+}, {
+  title: 'Linked list: sum (recursive)',
+  declarations:
+`class Node {
+  int value;
+  Node next;
+}
+int sum(Node node) {
+  if (node == null)
+    return 0;
+  else
+    return node.value + sum(node.next);
+}`,
+  statements:
+`Node first = new Node(); first.value = 1;
+Node second = new Node(); second.value = 2;
+Node third = new Node(); third.value = 3;
+first.next = second;
+second.next = third;
+assert sum(first) == 6;`,
+  expression: 'sum(first)'
+}, {
+  title: 'linked list: copy',
+  declarations:
+`class Node {
+  int value;
+  Node next;
+}
+Node copy(Node node) {
+  if (node == null)
+    return null;
+  Node newNode = new Node();
+  newNode.value = node.value;
+  newNode.next = copy(node.next);
+  return newNode;
+}`,
+  statements:
+`Node first = new Node();
+first.value = 1;
+Node second = new Node();
+second.value = 2;
+Node third = new Node();
+third.value = 3;
+first.next = second;
+second.next = third;
+Node copied = copy(first);
+assert copied != first;
+assert copied.value == first.value;
+assert copied.next != first.next;
+assert copied.next.value == first.next.value;`,
+  expression: ''
+}]
+
+function setExample(example) {
+  reset();
+  declarationsEditor.setValue(example.declarations || "");
+  statementsEditor.setValue(example.statements || "");
+  expressionEditor.setValue(example.expression || "");
+}
+
+setExample(examples[0]);
+
+{
+  let examplesNode = document.getElementById('examples');
+examplesNode.onchange = event => { if (event.target.selectedOptions.length > 0) event.target.selectedOptions[0].my_onselected(); };
+  for (let example of examples) {
+    let exampleOption = document.createElement('option');
+    examplesNode.appendChild(exampleOption);
+    exampleOption.innerText = example.title;
+    exampleOption.my_onselected = () => setExample(example);
+  }
 }

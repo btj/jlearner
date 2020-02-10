@@ -29,7 +29,7 @@
     </style>
   </head>
   <body style="background: lightgray">
-    <h1>JLearner</h1>
+    <h1>JLearner <select id="examples"></select></h1>
     <table width="100%" style="table-layout: fixed"><tr>
     <td width="50%" style="vertical-align: top">
       <p><b>Declarations:</b></p>
@@ -87,19 +87,12 @@
       mode: 'text/x-java'
     });
     declarationsEditor.setSize("100%", "15em");
-    declarationsEditor.setValue(
-      "void incrementAll(int[] xs) {\n" +
-      "  for (int i = 0; i < xs.length; i++)\n" +
-      "    xs[i] += 5;\n" +
-      "}");
     declarationsEditor.on('changes', () => clearErrorWidgets());
     var statementsEditor = CodeMirror.fromTextArea(document.getElementById('statements'), {
       lineNumbers: false,
       matchBrackets: true,
       mode: 'text/x-java'
     });
-    statementsEditor.setValue(
-      "int[] xs = new int[7];");
     statementsEditor.on('changes', () => clearErrorWidgets());
     statementsEditor.setSize("100%", "10em");
     statementsEditor.on('keydown', (editor, event) => {
@@ -110,7 +103,6 @@
       matchBrackets: true,
       mode: 'text/x-java'
     });
-    expressionEditor.setValue("incrementAll(xs)");
     expressionEditor.on('changes', () => clearErrorWidgets());
     expressionEditor.setSize("100%", "3em");
     var resultsEditor = CodeMirror.fromTextArea(document.getElementById('results'), {
