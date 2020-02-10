@@ -2326,7 +2326,7 @@ transfer(account1, account2, 500);
 assert account1.balance == -500;
 assert account2.balance == 500;
 transfer(account1, account1, 200);
-assert account1.balance == 200;`,
+assert account1.balance == -500;`,
   expression: ''
 }, {
   title: 'Linked list: sum (iterative)',
