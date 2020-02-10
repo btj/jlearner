@@ -313,6 +313,13 @@ class BinaryOperatorExpression extends Expression {
       case '-':
       case '*':
       case '/':
+      case '%':
+      case '>>':
+      case '>>>':
+      case '<<':
+      case '&':
+      case '|':
+      case '^':
         this.leftOperand.checkAgainst(env, intType);
         this.rightOperand.checkAgainst(env, intType);
         return intType;
@@ -322,6 +329,11 @@ class BinaryOperatorExpression extends Expression {
       case '>=':
         this.leftOperand.checkAgainst(env, intType);
         this.rightOperand.checkAgainst(env, intType);
+        return booleanType;
+      case '&&':
+      case '||':
+        this.leftOperand.checkAgainst(env, booleanType);
+        this.rightOperand.checkAgainst(env, booleanType);
         return booleanType;
       case '==':
       case '!=':
@@ -342,6 +354,13 @@ class BinaryOperatorExpression extends Expression {
       case '-': return (v1 - v2)|0;
       case '*': return (v1 * v2)|0;
       case '/': return (v1 / v2)|0;
+      case '%': return (v1 % v2)|0;
+      case '&': return v1 & v2;
+      case '|': return v1 | v2;
+      case '^': return v1 ^ v2;
+      case '>>': return v1 >> v2;
+      case '>>>': return v1 >>> v2;
+      case '<<': return v1 << v2;
       case '==': return v1 == v2;
       case '!=': return v1 != v2;
       case '<': return v1 < v2;
@@ -354,10 +373,19 @@ class BinaryOperatorExpression extends Expression {
   
   async evaluate(env) {
     await this.leftOperand.evaluate(env);
-    await this.rightOperand.evaluate(env);
-    await this.breakpoint();
-    let [v1, v2] = pop(2);
-    this.push(this.eval(v1, v2));
+    if (this.operator == '&&' || this.operator == '||') {
+      await this.breakpoint();
+      let [b] = pop(1);
+      if (b == (this.operator == '&&'))
+        await this.rightOperand.evaluate(env);
+      else
+        this.push(b);
+    } else {
+      await this.rightOperand.evaluate(env);
+      await this.breakpoint();
+      let [v1, v2] = pop(2);
+      this.push(this.eval(v1, v2));
+    }
   }
 }
 
@@ -1333,6 +1361,12 @@ class Parser {
       case "null":
         this.next();
         return new NullLiteral(this.popLoc());
+      case "true":
+      case "false": {
+        let kwd = this.token;
+        this.next();
+        return new BooleanLiteral(this.popLoc(), kwd == "true");
+      }
       case "++":
       case "--": {
         this.pushStart();
@@ -1476,9 +1510,39 @@ class Parser {
     }
   }
   
-  parseAssignmentExpression() {
+  parseConjunction() {
     this.pushStart();
     let e = this.parseRelationalExpression();
+    if (this.token == '&&') {
+      this.pushStart();
+      this.next();
+      let instrLoc = this.popLoc();
+      let rhs = this.parseConjunction();
+      return new BinaryOperatorExpression(this.popLoc(), instrLoc, e, '&&', rhs);
+    } else {
+      this.popLoc();
+      return e;
+    }
+  }
+  
+  parseDisjunction() {
+    this.pushStart();
+    let e = this.parseConjunction();
+    if (this.token == '||') {
+      this.pushStart();
+      this.next();
+      let instrLoc = this.popLoc();
+      let rhs = this.parseDisjunction();
+      return new BinaryOperatorExpression(this.popLoc(), instrLoc, e, '||', rhs);
+    } else {
+      this.popLoc();
+      return e;
+    }
+  }
+  
+  parseAssignmentExpression() {
+    this.pushStart();
+    let e = this.parseDisjunction();
     switch (this.token) {
       case '=':
       case '+=':
