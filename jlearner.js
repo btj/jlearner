@@ -393,9 +393,11 @@ class AssignmentExpression extends Expression {
     if (this.op == '=') {
       let t = this.lhs.check_(env);
       this.rhs.checkAgainst(env, t);
+      return t;
     } else  {
       this.lhs.checkAgainst(env, intType);
       this.rhs.checkAgainst(env, intType);
+      return intType;
     }
   }
 
@@ -439,6 +441,7 @@ class IncrementExpression extends Expression {
 
   check(env) {
     this.operand.checkAgainst(env, intType);
+    return intType;
   }
 
   async evaluate(env) {
