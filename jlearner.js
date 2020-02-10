@@ -1342,6 +1342,14 @@ class Parser {
         let e = this.parsePostfixExpression();
         return new IncrementExpression(this.popLoc(), instrLoc, e, op == '--', false);
       }
+      case "-": {
+        this.pushStart();
+        let op = this.token;
+        this.next();
+        let instrLoc = this.popLoc();
+        let e = this.parsePostfixExpression();
+        return new BinaryOperatorExpression(this.popLoc(), instrLoc, new IntLiteral(instrLoc, 0, true), '-', e);
+      }
       default:
         this.parseError("Number or identifier expected");
     }
