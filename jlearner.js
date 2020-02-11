@@ -2156,7 +2156,13 @@ function isDifferentLine(loc1, loc2) {
 
 function step() {
   let oldNode = currentNode;
-  currentBreakCondition = node => isDifferentLine(node.loc, oldNode.loc);
+  let oldStackSize = callStack.length;
+  let oldStackFrame = callStack[oldStackSize - 1];
+  currentBreakCondition = node => {
+    if (callStack.length != oldStackSize || callStack[oldStackSize - 1] !== oldStackFrame)
+      return true;
+    return isDifferentLine(node.loc, oldNode.loc);
+  };
   resume();
 }
 
