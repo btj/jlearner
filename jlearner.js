@@ -1472,6 +1472,7 @@ class Parser {
       switch (this.token) {
         case '*':
         case '/':
+        case '%':
           this.pushStart();
           let op = this.token;
           this.next();
