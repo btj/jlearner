@@ -123,7 +123,7 @@
     expressionEditor.setSize("100%", "3em");
     var resultsEditor = CodeMirror.fromTextArea(document.getElementById('results'), {
       matchBrackets: true,
-      mode: 'text/x-java'
+      mode: 'text/plain'
     });
     resultsEditor.setSize("100%", "10em");
     expressionEditor.on('keydown', (editor, event) => {

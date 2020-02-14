@@ -1993,12 +1993,13 @@ function updateCallStack() {
       row.appendChild(nameCell);
       nameCell.className = "stack-variable-name";
       nameCell.innerHTML = binding.getNameHTML();
-      if (resumeFunc == null && binding instanceof LocalBinding) {
+      if (resumeFunc == null && (binding instanceof LocalBinding || binding instanceof SyntheticVariableBinding)) {
         let removeButton = document.createElement('button');
         removeButton.innerText = "Remove";
         removeButton.style.display = "none";
         removeButton.onclick = () => {
-          delete toplevelScope.bindings[binding.declaration.name];
+          let name = binding instanceof LocalBinding ? binding.declaration.name : binding.name;
+          delete toplevelScope.bindings[name];
           updateMachineView();
         };
         nameCell.insertBefore(removeButton, nameCell.firstChild);
@@ -2132,6 +2133,19 @@ function parseDeclarations() {
   lastCheckedDeclarations = text;
 }
 
+class SyntheticVariableBinding {
+  constructor(name, value) {
+    this.name = name;
+    this.value = value;
+  }
+
+  getNameHTML() {
+    return this.name;
+  }
+}
+
+let syntheticVariableCount = 0;
+
 async function evaluateExpression(step) {
   await handleError(async () => {
     parseDeclarations();
@@ -2143,11 +2157,21 @@ async function evaluateExpression(step) {
     currentBreakCondition = () => step;
     await e.evaluate(toplevelScope);
     let [v] = pop(1);
-    resultsEditor.replaceRange(exprText + "\r\n", {line: resultsEditor.lastLine()});
-    let lastLine = resultsEditor.lastLine();
-    resultsEditor.replaceRange("==> " + v + "\r\n\r\n", {line: lastLine});
-    resultsEditor.markText({line: lastLine, ch: 0}, {line: lastLine}, {className: 'result'});
-    resultsEditor.scrollIntoView({line: lastLine});
+    let valueText;
+    if (e.type instanceof ReferenceType) {
+      let varName = '$' + ++syntheticVariableCount;
+      toplevelScope.bindings[varName] = new SyntheticVariableBinding(varName, v);
+      valueText = varName;
+    } else {
+      valueText = "" + v;
+    }
+    resultsEditor.replaceRange(exprText, {line: resultsEditor.lastLine()});
+    let resultsText = resultsEditor.getValue();
+    let {line, ch} = getTextCoordsFromOffset(resultsText, resultsText.length);
+    let text = " ==> " + valueText + "\r\n";
+    resultsEditor.replaceRange(text, {line});
+    resultsEditor.markText({line, ch}, {line}, {className: 'result', inclusiveRight: false});
+    resultsEditor.scrollIntoView({line});
   });
   updateMachineView();
 }
