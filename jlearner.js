@@ -1780,10 +1780,28 @@ class Parser {
     return statements;
   }
   
+  parseModifiers() {
+    switch (this.token) {
+      case "public":
+      case "protected":
+      case "private":
+      case "static":
+      case "final":
+        this.parseError("This modifier is not supported by JLearner");
+    }
+  }
+  
   parseClassMemberDeclaration() {
     this.pushStart();
+    this.parseModifiers();
     let type = this.parseType();
+    if (this.token == '(' && type instanceof ClassTypeExpression)
+      this.parseError("Constructors are not (yet) supported by JLearner. Instead, define a 'create' method outside the class.");
     let x = this.expect('IDENT');
+    if (this.token == '(')
+      this.parseError("Methods inside classes are not (yet) supported by JLearner. Instead, define the method outside the class.");
+    if (this.token == '=')
+      this.parseError("Field initializers are not (yet) supported by JLearner.");
     this.expect(';');
     return new FieldDeclaration(this.popLoc(), type, x);
   }
