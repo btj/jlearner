@@ -845,6 +845,9 @@ class CallExpression extends Expression {
   }
 
   async evaluate(env) {
+    callCount++;
+    if (callCount > 100)
+      this.executionError("Too many function calls. Possible infinite recursion.");
     if (this.callee instanceof VariableExpression) {
       if (!has(toplevelMethods, this.callee.name))
         this.executionError("No such method: " + this.callee.name);
@@ -1074,6 +1077,8 @@ class BlockStatement extends Statement {
   }
 }
 
+let iterationCount = 0;
+
 class WhileStatement extends Statement {
   constructor(loc, instrLoc, condition, body) {
     super(loc, instrLoc);
@@ -1089,6 +1094,9 @@ class WhileStatement extends Statement {
   async execute(env) {
     let result;
     while (result === undefined) {
+      iterationCount++;
+      if (iterationCount == 1000)
+        this.executionError("Too many loop iterations. Possible infinite loop.");
       await this.condition.evaluate(env);
       await this.breakpoint();
       let [b] = pop(1);
@@ -1163,6 +1171,8 @@ class ParameterDeclaration extends Declaration {
     this.type.resolve();
   }
 }
+
+let callCount = 0;
 
 class MethodDeclaration extends Declaration {
   constructor(loc, returnType, nameLoc, name, parameterDeclarations, bodyBlock) {
