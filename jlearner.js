@@ -1607,6 +1607,13 @@ class Parser {
       case "TYPE_IDENT":
         this.next();
         return new ClassTypeExpression(this.popLoc(), this.lastValue);
+      case "byte":
+      case "short":
+      case "long":
+      case "float":
+      case "double":
+      case "char":
+        this.parseError("Type '" + this.token + "' is not (yet) supported by JLearner. Use type 'int'.");
       default:
         this.popLoc();
         return null;
