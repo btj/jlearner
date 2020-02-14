@@ -2052,6 +2052,11 @@ async function executeStatements(step) {
   updateMachineView();
 }
 
+function resetAndExecute() {
+  reset();
+  executeStatements(false);
+}
+
 function getTextCoordsFromOffset(text, offset) {
   let line = 0;
   let lineStart = 0;
@@ -2250,6 +2255,7 @@ function reset() {
 function updateButtonStates() {
   let stepping = resumeFunc != null;
   document.getElementById('executeButton').disabled = stepping;
+  document.getElementById('resetAndExecuteButton').disabled = stepping;
   document.getElementById('stepThroughStatementsButton').disabled = stepping;
   document.getElementById('evaluateButton').disabled = stepping;
   document.getElementById('stepThroughExpressionButton').disabled = stepping;

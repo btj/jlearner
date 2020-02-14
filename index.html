@@ -35,7 +35,10 @@
     <td width="50%" style="vertical-align: top">
       <p><b>Declarations:</b></p>
       <p><textarea id="declarations"></textarea></p>
-      <p><b>Statements:</b> <button id="executeButton" onClick="executeStatements(false)">Execute (Ctrl+Enter)</button> <button id="stepThroughStatementsButton" onclick="executeStatements(true)">Step through</button></p>
+      <p><b>Statements:</b>
+        <button id="executeButton" onClick="executeStatements(false)">Execute (Ctrl+Enter)</button>
+        <button id="resetAndExecuteButton" onClick="resetAndExecute()">Reset machine and execute (Shift+Ctrl+Enter)</button>
+        <button id="stepThroughStatementsButton" onclick="executeStatements(true)">Step through</button></p>
       <p><textarea id="statements"></textarea></p>
       <p><b>Expression:</b> <button id="evaluateButton" onClick="evaluateExpression()">Evaluate (Ctrl+Enter)</button> <button id="stepThroughExpressionButton" onclick="evaluateExpression(true)">Step through</button></p>
       <p><textarea id="expression"></textarea></p>
@@ -49,7 +52,7 @@
         <button id="stepOverButton" onclick="stepOver()" disabled>Step over</button>
         <button id="stepOutButton" onClick="stepOut()" disabled>Step out</button>
         <button id="continueButton" onclick="continue_()" disabled>Continue</button>
-        <button onclick="reset()">Reset</button></p>
+        <button onclick="reset()">Reset (Ctrl+Esc)</button></p>
       <div style="position: relative; display: flex; flex-direction: row; align-items: stretch">
             <table id="callstack" style="background-color: lightgreen; border: 2px solid black; border-collapse: collapse">
             </table>
@@ -97,7 +100,19 @@
     statementsEditor.on('changes', () => clearErrorWidgets());
     statementsEditor.setSize("100%", "10em");
     statementsEditor.on('keydown', (editor, event) => {
-      if (event.keyCode == 13 && event.ctrlKey) executeStatements(false);
+      if (event.keyCode == 13 && event.ctrlKey) {
+        event.preventDefault();
+        if (event.shiftKey)
+          resetAndExecute();
+        else
+          executeStatements(false);
+      }
+    });
+    document.addEventListener('keydown', event => {
+      if (event.keyCode == 27 && event.ctrlKey) {
+        event.preventDefault();
+        reset();
+      }
     });
     var expressionEditor = CodeMirror.fromTextArea(document.getElementById('expression'), {
       lineNumbers: false,
@@ -112,7 +127,10 @@
     });
     resultsEditor.setSize("100%", "10em");
     expressionEditor.on('keydown', (editor, event) => {
-      if (event.keyCode == 13 && event.ctrlKey) evaluateExpression(false);
+      if (event.keyCode == 13 && event.ctrlKey) {
+        event.preventDefault();
+        evaluateExpression(false);
+      }
     });
   </script>
       <!-- script>
