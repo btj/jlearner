@@ -25,8 +25,9 @@ If you want to easily copy-paste all of your code into and out of JLearner in on
 ## Methods, loops
 
 - Declare a method that computes the average (rounded toward zero) between two given integers (Note: in Java, if `x` and `y` are of type `int`, `x / y` is the quotient of `x` and `y`, rounded toward zero.)
-- Declare a method that computes `x` to the power of `y`, for nonnegative `y` (recursive implementation)
 - Declare a method that computes `x` to the power of `y`, for nonnegative `y` (iterative implementation)
+- Declare a method that computes `x` to the power of `y`, for nonnegative `y` (recursive implementation)
+- Declare a method that computes the square root (rounded down) of a given nonnegative integer. (Find the largest integer whose square is not greater than the given number.)
 
 ## Arrays
 
@@ -34,21 +35,24 @@ If you want to easily copy-paste all of your code into and out of JLearner in on
 - Declare a method that replaces each element in an array by its negation
 - Declare a method that returns a new array whose elements are the negation of the elements of a given array
 
-## Objects:
+## Objects
 
-- Declare a class of half-open intervals `[a, b)`, given by a lower bound `a` (inclusive) and an upper bound `b` (exclusive)
-- Declare a method that returns the width of an interval
-- Declare a method that returns whether a given number is in a given interval
-- Declare a method that returns whether two given intervals overlap
-- Declare a method that returns the narrowest interval that includes two given intervals
-- Declare a method that shifts a given interval by a given amount
-- Declare a method that returns a new interval object that is equal to a given interval, shifted by a given amount
+- Declare a class `Vector` such that an object of this class can be used to store a two-dimensional vector with integer coordinates `x` and `y`. (That is, declare a class `Vector` with a field `x` and a field `y`.)
+- Declare a method that returns the size (rounded down) of the vector stored in a given `Vector` object. (Use the square root method you declared earlier.)
+- Declare a method that returns whether the vector stored in one given `Vector` object is larger than the vector stored in another given `Vector` object. Use the size method you declared in the previous exercise.
+- Declare a method that returns a new `Vector` object that stores the sum of the vectors stored in two given `Vector` objects.
+- Declare a method that translates (shifts) the vector stored in a given `Vector` object by the vector stored in another given `Vector` object. It updates the first `Vector` object; it does not create a new object.
 
-## Linked lists:
+## Siblings
 
-- Declare a class of linked list nodes, given by a value and a pointer to the next node
-- Declare a method that counts the number of zeros in a given linked list (recursive implementation)
-- Declare a method that counts the number of zeros in a given linked list (iterative implementation)
-- Declare a method that replaces each element of a given linked list by its negation (recursive implementation)
-- Declare a method that replaces each element of a given linked list by its negation (iterative implementation)
-- Declare a method that returns a new linked list whose elements are the negation of a given linked list (recursive implementation)
+A person is a sibling of another person if they are either a brother or a sister of the other person. For these exercises, assume no two siblings have the same age.
+
+- Declare a class such that an object of this class can be used to store the age and the next oldest sibling of a person. (That is, declare a class `Person` with a field `age` and a field `nextOldestSibling`.) (The next oldest sibling of a person is the oldest sibling of that person that is younger than that person.) If a person has no younger siblings, store `null` in the corresponding `nextOldestSibling` field.
+- Declare a method that counts the number of younger siblings of some person, given a `Person` object corresponding to that person (iterative implementation).
+- Declare a method that counts the number of younger siblings of some person, given a `Person` object corresponding to that person (recursive implementation).
+- Declare a method that counts the number of adult younger siblings of a some person, given a `Person` object corresponding to that person  (iterative implementation).
+- Declare a method that counts the number of adult younger siblings of a some person, given a `Person` object corresponding to that person  (recursive implementation).
+- Declare a method that increments the age stored for some person, as well the ages stored for the person's younger siblings by one, given a `Person` object corresponding to that person (iterative implementation).
+- Declare a method that increments the age stored for some person, as well the ages stored for the person's younger siblings by one, given a `Person` object corresponding to that person (recursive implementation).
+- Declare a method that updates the `Person` object corresponding to the youngest sibling of some person _p_ to reflect the fact that a new sibling (age 0) was born, given a `Person` object corresponding to person _p_ (iterative implementation).
+- Declare a method that updates the `Person` object corresponding to the youngest sibling of some person _p_ to reflect the fact that a new sibling (age 0) was born, given a `Person` object corresponding to person _p_ (recursive implementation).
