@@ -845,9 +845,6 @@ class CallExpression extends Expression {
   }
 
   async evaluate(env) {
-    callCount++;
-    if (callCount > 100)
-      this.executionError("Too many function calls. Possible infinite recursion.");
     if (this.callee instanceof VariableExpression) {
       if (!has(toplevelMethods, this.callee.name))
         this.executionError("No such method: " + this.callee.name);
@@ -1172,7 +1169,7 @@ class ParameterDeclaration extends Declaration {
   }
 }
 
-let callCount = 0;
+let maxCallStackDepth = 100;
 
 class MethodDeclaration extends Declaration {
   constructor(loc, returnType, nameLoc, name, parameterDeclarations, bodyBlock) {
@@ -1206,6 +1203,8 @@ class MethodDeclaration extends Declaration {
 
   async call(callExpr, args) {
     let env = new Scope(null);
+    if (callStack.length >= maxCallStackDepth)
+      throw new LocError(callExpr.loc, "Maximum call stack depth (= " + maxCallStackDepth + ") exceeded");
     let stackFrame = new StackFrame(this.name, env);
     callStack.push(stackFrame);
     for (let i = 0; i < args.length; i++)
@@ -2030,7 +2029,6 @@ function updateCallStack() {
 
 function updateMachineView() {
   iterationCount = 0;
-  callCount = 0;
   collectGarbage();
   updateCallStack();
   updateFieldArrows();
