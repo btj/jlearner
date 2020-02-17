@@ -2029,6 +2029,8 @@ function updateCallStack() {
 }
 
 function updateMachineView() {
+  iterationCount = 0;
+  callCount = 0;
   collectGarbage();
   updateCallStack();
   updateFieldArrows();
