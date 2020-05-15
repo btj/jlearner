@@ -5,6 +5,56 @@ able to serve as a vehicle for conveying the essential principles of
 programming in Java, while remaining small enough to be able to be presented
 fully to students taking a second programming course.
 
+## JLearner Values and Types
+
+The result of evaluating a JLearner expression is a *JLearner value*. The JLearner values are:
+- the *Boolean values*, `true` and `false`
+- the *integer values*, the integers between -2147483648 and 2147483647
+- the *null reference*, `null`
+- the *object references*, which uniquely identify an *object* in the *heap*
+
+An *object* is either a *class instance* or an *array*.
+
+The JLearner *types* are:
+- type `boolean`
+- type `int`
+- for every class named `ClassName` declared by the JLearner program, the *class type* `ClassName`
+- for every type `T`, the *array type* `T[]`. The type `T` is called the *element type* of array type `T[]`.
+
+The values of type `boolean` are the Boolean values.
+
+The values of type `int` are the integer values.
+
+The values of a class type `C` are the null reference and the object references that refer to an instance of class `C`.
+
+The values of an array type `T[]` are the null reference and the object references that refer to an array with element type `T`.
+
+The class types and the array types are collectively called the *reference types*. Notice that the null reference is a value of every reference type.
+
+## The Heap
+
+The JLearner *heap* at each point during the execution of a program contains
+the objects created by the program so far. For each instance O of a class C
+created by the program and for each field F of C, it stores the value of O.F.
+For each array A created by the program, it stores the element type and the
+length N of the array, and for each of the elements of the array (identified by
+an index I between 0, inclusive, and N, exclusive), it stores the value of
+A[I].
+
+The JLearner heap is always *well-typed*:
+- for any instance O of a class C and for any field F of C, the value of O.F is a value of the declared type of F
+- for any array A with element type T, the value of any element A[I] of A is a value of type T
+
+## The Method Activation Stack
+
+Evaluation of JLearner expressions and execution of JLearner statements occurs in the context of a *variable environment* that *binds* the method parameters and local variables that are currently *in scope* to a JLearner value. The variable environment is used to evaluate variable expressions.
+
+A method call suspends the current method activation and starts a new method activation. It pushes a corresponding *activation record* onto the *method activation stack*, also known as the *call stack*. The call stack contains an activation record for each method activation that is in progress. (At any point during the execution of a program, only one method activation, the one at the top of the activation stack, is active; the other method activations are suspended.)
+
+For each activation, the corresponding activation record stores the current variable environment and the *program counter* (also known as the *instruction pointer*), which indicates which part of the body of the method being executed will be executed next.
+
+When a method activation is finished, the corresponding activation record is removed (or *popped*) from the activation stack, and execution of the caller is resumed.
+
 ## JLearner Expressions
 
 The JLearner *expressions* are:
@@ -18,7 +68,7 @@ The JLearner *expressions* are:
 - the *parenthesized expressions*, e.g. `(7 - 1)`
 
 The literal expressions are:
-- the *boolean literal expressions*, `true` and `false`
+- the *Boolean literal expressions*, `true` and `false`
 - the *integer literal expressions*, e.g. `10`, `42`, `739`
 - the *null literal expression*, `null`
 
@@ -85,4 +135,3 @@ The following table lists the operators in order of decreasing precedence.
 | `&&` | |
 | `\|\|` | |
 | `=` `op=` | Right |
-
