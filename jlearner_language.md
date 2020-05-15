@@ -5,9 +5,7 @@ able to serve as a vehicle for conveying the essential principles of
 programming in Java, while remaining small enough to be able to be presented
 fully to students taking a second programming course.
 
-## The syntax of JLearner
-
-### Expressions
+## JLearner Expressions
 
 The JLearner *expressions* are:
 - the *literal expressions*, e.g. `true`, `42`, `null`
@@ -69,3 +67,22 @@ The array element selection expressions are the expressions of the form `Express
 The method call expressions are the expressions of the form `MethodName()` or `MethodName(Arguments)`, where `Arguments` is either an `Expression` or of the form `Arguments, Expression`.
 
 The parenthesized expressions are the expressions of the form `(Expression)`.
+
+### Precedence and associativity
+
+The expression `1 + 2 * 3` is an addition expression whose right operand is a multiplication expression; it is not a multiplication expression whose left operand is an addition expression. This is because the multiplication operator has *higher precedence* than the addition operator.
+
+Furthermore, `1 - 2 - 3` is a subtraction expression whose left operand is a subtraction expression; it is not a subtraction expression whose right operand is a subtraction expression. This is because the negation operator is *left-associative*.
+
+The following table lists the operators in order of decreasing precedence.
+
+| Operators | Associativity |
+| --- | --- |
+| Unary (`-`, `++`, `--`) | |
+| `*` `/` `%` | Left |
+| `+` `-` | Left |
+| `==` `!=` `<` `<=` `>` `>=` | |
+| `&&` | |
+| `\|\|` | |
+| `=` `op=` | Right |
+
