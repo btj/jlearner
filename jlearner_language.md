@@ -31,6 +31,10 @@ The values of an array type `T[]` are the null reference and the object referenc
 
 The class types and the array types are collectively called the *reference types*. Notice that the null reference is a value of every reference type.
 
+## Classes
+
+JLearner *class declarations* are of the form `class ClassName { FieldDeclarations }`, where `FieldDeclarations` is a sequence of zero or more *field declarations*. A JLearner field declaration is of the form `Type FieldName;`.
+
 ## The Heap
 
 The JLearner *heap* at each point during the execution of a program contains
@@ -135,3 +139,15 @@ The following table lists the operators in order of decreasing precedence.
 | `&&` | |
 | `\|\|` | |
 | `=` `op=` | Right |
+
+# JLearner Statements
+
+The JLearner *statements* are:
+- the *local variable declaration statements*, of the form `Type VariableName = Expression;` or `Type VariableName = ArrayInitializer;`, where `ArrayInitializer` is of the form `{ Expressions }`, where `Expressions` is a comma-separated sequence of zero or more expressions
+- the *expression statements*, of the form `Expression;`
+- the *if statements*, of the form `if (Expression) Statement` or `if (Expression) Statement else Statement`
+- the *while statements*, of the form `while (Expression) Statement`
+- the *for statements*, of the form `for (Initialization; Condition; Update) Statement`, where `Initialization` is either nothing or of the form `Type VariableName = Expression` or of the form `VariableName = Expression`, `Condition` is either nothing or an expression, and `Update` is either nothing or an expression
+- the *block statements*, of the form `{ Statements }`, where `Statements` is a sequence of zero or more statements
+- the *return statements*, of the form `return;` or `return Expression;`
+- the *assert statements*, of the form `assert Expression;`
