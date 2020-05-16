@@ -450,11 +450,14 @@ class AssignmentExpression extends Expression {
   
   async evaluate(env) {
     let bindingThunk = await this.lhs.evaluateBinding(env);
+    if (this.op != '=')
+      this.push(bindingThunk(peek).value);
     await this.rhs.evaluate(env);
     await this.breakpoint();
     let [rhs] = pop(1);
-    let lhs = bindingThunk();
-    let result = this.evaluateOperator(lhs.value, rhs);
+    let [lhsValue] = this.op == '=' ? [undefined] : pop(1);
+    let lhs = bindingThunk(pop);
+    let result = this.evaluateOperator(lhsValue, rhs);
     this.push(lhs.setValue(result));
   }
 }
@@ -475,7 +478,7 @@ class IncrementExpression extends Expression {
   async evaluate(env) {
     let bindingThunk = await this.operand.evaluateBinding(env);
     await this.breakpoint();
-    let lhs = bindingThunk();
+    let lhs = bindingThunk(pop);
     let oldValue = lhs.value;
     if (this.isDecrement)
       lhs.value = (lhs.value - 1)|0;
@@ -763,7 +766,7 @@ class SelectExpression extends Expression {
   
   async evaluateBinding(env, allowReadOnly) {
     await this.target.evaluate(env);
-    return () => {
+    return pop => {
       let [target] = pop(1);
       if (target instanceof JavaArrayObject) {
         if (this.selector != "length")
@@ -783,7 +786,7 @@ class SelectExpression extends Expression {
   async evaluate(env) {
     let bindingThunk = await this.evaluateBinding(env, true);
     await this.breakpoint();
-    this.push(bindingThunk().value);
+    this.push(bindingThunk(pop).value);
   }
 }
 
@@ -805,7 +808,7 @@ class SubscriptExpression extends Expression {
   async evaluateBinding(env) {
     await this.target.evaluate(env);
     await this.index.evaluate(env);
-    return () => {
+    return pop => {
       let [target, index] = pop(2);
       if (!(target instanceof JavaArrayObject))
         this.executionError(target + " is not an array");
@@ -820,7 +823,7 @@ class SubscriptExpression extends Expression {
   async evaluate(env) {
     let bindingThunk = await this.evaluateBinding(env);
     await this.breakpoint();
-    this.push(bindingThunk().value);
+    this.push(bindingThunk(pop).value);
   }
 }
 
@@ -1905,6 +1908,12 @@ resetMachine();
 
 function push(binding) {
   callStack[callStack.length - 1].operands.push(binding);
+}
+
+function peek(N) {
+  let operands = callStack[callStack.length - 1].operands;
+  let result = operands.slice(operands.length - N, operands.length);
+  return result.map(binding => binding.value);
 }
 
 function pop(N) {
