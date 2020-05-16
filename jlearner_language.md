@@ -197,13 +197,15 @@ The field selection expressions are the expressions of the form `Expression.Fiel
 
 Evaluation of a field selection expression `E.F` to a variable first evaluates the *target expression* E to a value V (which must be a reference O to an instance of a class C that declares a field named F), and then completes with variable O.F as its result.
 
+However, an expression `E.length`, where `E` is of an array type, is an *array length expression*. It is evaluated by first evaluating E to a value V, which must be a referene to an array A. It then completes with result value N, where N is the length of A.
+
 The array component selection expressions are the expressions of the form `Expression[Expression]`.
 
 Evaluation of an array component selection expression `E1[E2]` first evaluates the *target expression* E1 to a value V1 (which must be a reference to an array A), then evaluates the *index expression* E2 to a value V2 (which must be a valid index I for array A), and then completes with variable A[I] as its result.
 
 The method call expressions are the expressions of the form `MethodName(Expressions)`, where `Expressions` (known as the *argument expressions* of the method call expression) is a comma-separated sequence of zero or more expressions.
 
-Evaluation of a method call expression `M(Expressions)` first evaluates the argument expressions `Expressions`, from left to right, to obtain *argument values* `Args`. It must be the case that the number of arguments equals the number of declared parameters of method M. Then, a new activation record is pushed onto the method activation stack, and for each method parameter declaration P of method M, a method parameter P is added to the new activation record's variable environment, initialized with the corresponding argument value. The new activation record's instruction pointer is initialized to point to the first statement of the body of method M. Program execution then proceeds by executing the body of M. When the new activation finishes with a result value V, evaluation of the method call completes with value V.
+Evaluation of a method call expression `M(Expressions)` first evaluates the argument expressions `Expressions`, from left to right, to obtain *argument values* `Args`. It must be the case that the number of arguments equals the number of declared parameters of method M. Then, a new activation record is pushed onto the method activation stack, and for each method parameter declaration P of method M, a method parameter P is added to the new activation record's variable environment, initialized with the corresponding argument value. The new activation record's instruction pointer is initialized to point to the first statement of the body of method M. Program execution then proceeds by executing the body of M. When the new activation finishes with a result value V, its activation record is removed from the activation stack and evaluation of the method call completes with value V.
 
 The parenthesized expressions are the expressions of the form `(Expression)`.
 
@@ -230,7 +232,7 @@ The following table lists the operators in order of decreasing precedence.
 ## Statements
 
 The JLearner *statements* are:
-- the *local variable declaration statements*, of the form `Type VariableName = Expression;` or `Type VariableName = ArrayInitializer;`, where `ArrayInitializer` is of the form `{ Expressions }`, where `Expressions` is a comma-separated sequence of zero or more expressions
+- the *local variable declaration statements*, of the form `Type VariableName = Expression;` or `Type[] VariableName = ArrayInitializer;`, where `ArrayInitializer` is of the form `{ Expressions }`, where `Expressions` is a comma-separated sequence of zero or more expressions
 - the *expression statements*, of the form `Expression;`
 - the *if statements*, of the form `if (Expression) Statement` or `if (Expression) Statement else Statement`
 - the *while statements*, of the form `while (Expression) Statement`
@@ -238,3 +240,23 @@ The JLearner *statements* are:
 - the *block statements*, of the form `{ Statements }`, where `Statements` is a sequence of zero or more statements
 - the *return statements*, of the form `return;` or `return Expression;`
 - the *assert statements*, of the form `assert Expression;`
+
+Execution of a local variable declaration statement `T X = E;` first evaluates *initializer* E to a value V (which must be of type T), and then adds a new local variable named X to the active activation record's variable environment, initialized with V.
+
+Execution of a local variable declaration statement `T[] X = {Expressions};` first evaluates `Expressions`, from left to right, to a sequence of values Vs, then creates a new array A in the heap with element type T and length N equal to the number of values, then initializes each component of A with the corresponding value from Vs, and then adds a new local variable named X to the active activation record's variable environment, initialized with a reference to A.
+
+Execution of an expression statement `E;` evaluates E.
+
+Execution of an if statement `if (E) S` first evaluates E to a Boolean value V. If V is `true`, it then executes `S`.
+
+Execution of an if statement `if (E) S1 else S2` first evaluates E to a Boolean value V. If V is `true`, it then executes `S1`; otherwise, it then executes `S2`.
+
+Execution of a while statement `while (E) S` first evaluates E to a Boolean value V. If V is `true`, it then executes `S` and `while (E) S`, in that order.
+
+Execution of a for statement `for (Init; Cond; Update) S` is equivalent to execution of a block `{ Init; while (Cond) { S Update; } }`.
+
+Execution of a block statement `{ Statements }` executes the given statements, from left to right, and then removes all local variables from the active activation record's variable environment that were added since the start of the execution of the block.
+
+Execution of a return statement `return;` causes the active method activation to finish without a result value. Execution of a return statement `return E;` first evaluates E to a value V and then causes the active method activation to finish with result value V.
+
+Execution of an assert statement `assert E;` evaluates E to a value, which must be the value `true`.
