@@ -10,6 +10,17 @@ this document serves to further clarify these concepts and to offer a reasonably
 
 To further clarify the details of program execution, we recommend that students step through example programs in the JLearner environment while studying this document.
 
+Contents:
+- [Values and Types](#Values-and-Types)
+- [Classes](#Classes)
+- [The Heap](#The-Heap)
+- [Methods](#Methods)
+- [The Method Activation Stack](#The-Method-Activation-Stack)
+- [Variables and Variable Declarations](#Variables-and-Variable-Declarations)
+- [Expressions](#Expressions)
+- [Statements](#Statements)
+- [Further Reading](#Further-Reading)
+
 ## Values and Types
 
 The result of evaluating a JLearner expression is a *JLearner value*. The JLearner values are:
@@ -260,3 +271,7 @@ Execution of a block statement `{ Statements }` executes the given statements, f
 Execution of a return statement `return;` causes the active method activation to finish without a result value. Execution of a return statement `return E;` first evaluates E to a value V and then causes the active method activation to finish with result value V.
 
 Execution of an assert statement `assert E;` evaluates E to a value, which must be the value `true`.
+
+## Further reading
+
+The syntax and meaning of the full Java programming language is specified in the [Java Language Specification](https://docs.oracle.com/javase/specs/index.html).
