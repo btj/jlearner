@@ -1,6 +1,6 @@
 # The JLearner Programming Language
 
-JLearner is a small subset of Java. It includes enough features of Java to be
+[JLearner](https://btj.github.io/jlearner) is a browser-hosted environment to be used by students of Java for experimenting with and stepping through simple Java programs. The programming language supported by JLearner, called the JLearner programming language or simply JLearner in this document, is a small subset of Java. It includes enough features of Java to be
 able to serve as a vehicle for conveying the essential principles of
 programming in Java, while remaining small enough to be able to be presented
 fully to students taking a second programming course.
