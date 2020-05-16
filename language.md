@@ -105,7 +105,7 @@ At any point during an execution of a program, a single variable declaration may
 
 For array components, there is no corresponding declaration.
 
-Consider the following snapshot from an execution in the JLearner environment of an example program that uses a recursive method `sum` to ompute the sum of the values stored by a linked list:
+Consider the following snapshot from an execution in the JLearner environment of an example program that uses a recursive method `sum` to compute the sum of the values stored by a linked list:
 
 <img src="linked_list_sum_recursive.png"></img>
 
