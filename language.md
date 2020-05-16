@@ -11,15 +11,15 @@ this document serves to further clarify these concepts and to offer a reasonably
 To further clarify the details of program execution, we recommend that students step through example programs in the JLearner environment while studying this document.
 
 Contents:
-- [Values and Types](#Values-and-Types)
-- [Classes](#Classes)
-- [The Heap](#The-Heap)
-- [Methods](#Methods)
-- [The Method Activation Stack](#The-Method-Activation-Stack)
-- [Variables and Variable Declarations](#Variables-and-Variable-Declarations)
-- [Expressions](#Expressions)
-- [Statements](#Statements)
-- [Further Reading](#Further-Reading)
+- [Values and Types](#values-and-types)
+- [Classes](#classes)
+- [The Heap](#the-heap)
+- [Methods](#methods)
+- [The Method Activation Stack](#the-method-activation-stack)
+- [Variables and Variable Declarations](#variables-and-variable-declarations)
+- [Expressions](#expressions)
+- [Statements](#statements)
+- [Further Reading](#further-reading)
 
 ## Values and Types
 
