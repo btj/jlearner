@@ -208,7 +208,7 @@ The field selection expressions are the expressions of the form `Expression.Fiel
 
 Evaluation of a field selection expression `E.F` to a variable first evaluates the *target expression* E to a value V (which must be a reference O to an instance of a class C that declares a field named F), and then completes with variable O.F as its result.
 
-However, an expression `E.length`, where `E` is of an array type, is an *array length expression*. It is evaluated by first evaluating E to a value V, which must be a referene to an array A. It then completes with result value N, where N is the length of A.
+However, an expression `E.length`, where `E` is of an array type, is an *array length expression*. It is evaluated by first evaluating E to a value V, which must be a reference to an array A. It then completes with result value N, where N is the length of A.
 
 The array component selection expressions are the expressions of the form `Expression[Expression]`.
 
