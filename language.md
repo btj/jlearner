@@ -63,7 +63,7 @@ A[I]. (We also say that it *binds* A[I] to some value.) We often refer to the va
 
 For example, consider the following snapshot from an execution of an example program in the JLearner environment:
 
-<img src="incrementAges.png"></img>
+![A program execution state](incrementAges.png)
 
 In this snapshot (showing a particular *program execution state*), the heap contains four objects: one array, with element type `Person` and length 3, and three instances of class `Person`. The first component of the array stores a reference to a `Person` instance whose `age` field currently stores the value 11. The second component stores a reference to another `Person` instance, whose `age` field currently stores the value `21`.
 
@@ -85,7 +85,7 @@ For each activation, the corresponding activation record stores the current vari
 
 When a method activation is finished, the corresponding activation record is removed (or *popped*) from the activation stack, and execution of the caller is resumed.
 
-<img src="incrementAges.png"></img>
+![A program execution state (repeated)](incrementAges.png)
 
 Consider again the same execution snapshot shown earlier (repeated here). The method activation stack currently contains three activation records. The record at the top of the stack (shown at the bottom in the picture; it is customary in computer science that stacks are depicted upside-down) corresponds to an activation of method `incrementAge`. This is the method that is currently active. When this activation is finished, the suspended activation of method `incrementAges` is resumed. The activation record for `incrementAge` binds method parameter `person` to a reference to the `Person` object with identification number 12. The activation record for `incrementAges` binds method parameter `persons` to a reference to the array object, and local variable `i` to the integer value 2.
 
@@ -107,7 +107,7 @@ For array components, there is no corresponding declaration.
 
 Consider the following snapshot from an execution in the JLearner environment of an example program that uses a recursive method `sum` to compute the sum of the values stored by a linked list:
 
-<img src="linked_list_sum_recursive.png"></img>
+![Another program execution state](linked_list_sum_recursive.png)
 
 - for the single field declaration `int value` of class `Node`, there are three corresponding object fields, one in each of the three instances of `Node`
 - for the single method parameter declaration `Node node` of method `sum`, there are three corresponding method parameters, one in each of the three currently active or suspended activations of method `sum`
