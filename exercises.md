@@ -86,17 +86,47 @@ A person is a sibling of another person if they are either a brother or a sister
 
 ## Search tree
 
-- Declare a class `TreeNode` that represents a node in a search tree. Each node stores a reference to its first child node (or `null` if it has no children), its next sibling node (or `null` if it has no further siblings), and its value. The *children* of a node are the first child and its siblings.
+In computer science, a *tree* consists of a number of *nodes*. Each node has zero or more *children*, which are themselves nodes. Each node is a child of at most one other node, which is called its *parent*. Exactly one node has no parent; this node is called the *root node* of the tree. We say the tree is *rooted* in that node.
+
+A *search tree* is a tree where each node has a *value*.
+
+- Declare a class `TreeNode` that represents a node in a search tree. Each node stores a reference to its first child node (or `null` if it has no children), its next sibling node (or `null` if it has no further siblings), and its value. The *children* of a node are the first child and the first child's siblings.
 - Declare a method that counts the number of children of a given node.
 - Declare a method that returns an array containing the sequence of children of a given node.
 - A node is called a *leaf* if it has no children. Declare a method that counts the number of descendants of a given node that are leaves. (Hint: use recursion.)
 - Declare a method `addLeafValues(node, array, i)` that writes the values of the descendants of `node` that are leaves into `array` starting at index `i` and returns the number of values written. (Hint: use recursion.)
 - Declare a method that returns an array containing the values of the descendants of a given node that are leaves. One can think of the tree rooted in the given node as storing this set of values.
-- Declare a method that checks that the values of all descendants of a given node are less than or equal to a given value.
+- Declare a method that checks that the values of all descendants of a given node that are leaves are less than or equal to a given value.
 - Declare a method that checks that for each descendant D of a given node that has a next sibling, the values of the descendants of D that are leaves are less than or equal to the value of D. In this case, we say the tree is *valid*. We say a node is an *interior node* if it is not a leaf. The value of an interior node that has a next sibling serves as an *upper bound* on the values stored by the tree rooted in that node. (The value of an interior node that does not have a next sibling has no meaning.)
-- A sequence of trees is called a *forest*. Declare a method that adds a given value to the forest rooted in a given node and returns the new root node. Specifically:
-  - If the given node is a leaf and the given value is less than the node's value, create a new node with the given value as its value and the given node as its next sibling, and return the new node.
-  - If the given node is a leaf and the given value equals the node's value, simply return the given node. (The tree already contains the value, so no action is required.)
-  - If the given node is a leaf and the given value is greater than the node's value, recursively add the given value to the given node's next sibling, set the given node's next sibling reference to the return value, and return the given node.
-  - If the given node is not a leaf and the given value is not greater than the node's value, recursively add the given value to the given node's first child, set the given node's first child reference to the return value, and return the given node.
-  - If the given node is not a leaf and the given value is greater than the node's value, recursively add the given value to the given node's next sibling, set the given node's next sibling reference to the return value, and return the given node.
+- A sequence of trees is called a *forest*. Declare a method that returns whether a given value is the value of a leaf in the forest rooted at a given node. Use the values of the interior nodes for performance. Specifically:
+  - If the given node is a null reference, return `false`.
+  - If the given node is a leaf:
+    - If the given value is less than the node's value, return `false`.
+    - If the given value equals the node's value, return `true`.
+    - If the given value is greater than the node's value, recursively check the node's next sibling.
+  - If the given node is not a leaf:
+    - If the given node does not have a next sibling or the given value is not greater than the node's value, recursively check the node's first child.
+    - If the given node has a next sibling and the given value is greater than the node's value, recursively check the node's next sibling.
+- Declare a method that adds a given value to the forest rooted in a given node and returns the new root node. Specifically:
+  - If the given node is a null reference (i.e. we are adding a value to an empty forest), create a new leaf node whose value is the given value and return it.
+  - If the given node is a leaf:
+    - If the given value is less than the node's value, create a new node with the given value as its value and the given node as its next sibling, and return the new node.
+    - If the given value equals the node's value, simply return the given node. (The tree already contains the value, so no modifications are required.)
+    - If the given value is greater than the node's value, recursively add the given value to the given node's next sibling, set the given node's next sibling reference to the return value, and return the given node.
+  - If the given node is not a leaf:
+    - If the given node does not have a next sibling or the given value is not greater than the node's value, recursively add the given value to the given node's first child, set the given node's first child reference to the return value, and return the given node.
+    - If the given node has a next sibling and the given value is greater than the node's value, recursively add the given value to the given node's next sibling, set the given node's next sibling reference to the return value, and return the given node.
+- Declare a method that removes a given value from the forest rooted in a given node and returns the new root node.
+
+### Balanced search tree
+
+- Declare a method that returns the maximum of the two given numbers.
+- Declare a method that returns the height of the forest rooted in a given node. The height of a null pointer is zero. The height of a node is the maximum of one more than the height of the forest rooted in its first child and the height of its next sibling.
+- Declare a method that returns whether a given forest is perfectly balanced. This is the case when each tree has the same height, and furthermore each tree's sequence of children is itself perfectly balanced.
+- Declare a method that returns whether a given forest is *two-three*; this means that each interior node has either two or three children. An interior node with less than two children is called *light*, and a node with more than three children is called *heavy*.
+- Declare a method that adds a given value to the forest rooted in a given node, while ensuring that if the forest was two-three before, it will again be two-three afterwards. Specifically, if after the operation, a tree has four children, replace it with two trees of two children. (Notice that this method does not change the height of the forest.)
+- Declare a method that adds a given value to the forest rooted in a given node, while ensuring that if the forest was two-three and had at most three trees before, it will again be two-three and have at most three trees afterwards. Specifically, if the forest has four trees, combine the trees to create two higher trees. (Notice that this operation may change the height of the forest.)
+- Declare a method that removes a given value from the forest rooted in a given node, while ensuring that if the forest was two-three before, it will again be two-three afterwards. Specifically, if after the operation, a tree has only one child, merge it with a sibling to obtain either two trees of two children (if the sibling had three children) or one tree with three children (if the sibling had two children). (Notice that this operation does not change the height of the forest.)
+- Declare a method that removes a given value from the forest rooted in a given node, while ensuring that if the forest was two-three before, it will again be two-three afterwards and furthermore, if it has only one tree, that tree is a leaf. Specifically, if after the operation, there is only one tree, replace it with its children. (Notice that this operation may change the height of the forest.)
+
+Notice that if a forest is two-three and has at most three trees, then checking whether the forest has a leaf with a given value, adding a given value, and removing a given value take time proportional to the height of the forest in the worst case. Furthermore, if the forest is perfectly balanced as well, the number of leaves in the forest is at least 2^(H-1) (rounded down), where H is the height of the forest, or, in other words, the height of the forest is at most the 2-logarithm of the number of leaves plus 1. That means that the lookup, add, and remove operations take time logarithmic in the number of leaves.
