@@ -84,11 +84,36 @@ A person is a sibling of another person if they are either a brother or a sister
 - Declare a method `subarray` such that `subarray(array, a, b)` returns an array of length `b - a` that contains the elements at indices `a` (inclusive) through `b` (exclusive) of `array`.
 - Declare a method `mergeSort` such that `mergeSort(array)` returns a new array that stores the sequence of values obtained by sorting the sequence of values stored in `array`. Hint: if the length of the array is 0 or 1, just return a copy of the array. Otherwise, use `subarray` to get the two halves of `array`, sort them using a recursive call of `mergeSort`, and then merge them using `merge`.
 
-## Search tree
+### Heap sort
 
 In computer science, a *tree* consists of a number of *nodes*. Each node has zero or more *children*, which are themselves nodes. Each node is a child of at most one other node, which is called its *parent*. Exactly one node has no parent; this node is called the *root node* of the tree. We say the tree is *rooted* in that node.
 
-A *search tree* is a tree where each node has a *value*.
+A *binary tree* is a tree where each node has at most two children.
+
+We can interpret an array as a binary tree as follows:
+- Each array element is a node.
+- The element at index 0 is the root node.
+- The parent node of the element at index N + 1 is the element at index N/2.
+This means that the children of the root node are at indices 1 and 2, the children of the node at index 1 are at indices 3 and 4, the children of the node at index 2 are at indices 5 and 6, the children of the node at index 3 are at indices 7 and 8, etc.
+
+We say a tree is a *max-heap* if the value of a node is not less than the values of its children. In a max-heap, the value of the root node is the maximum value of all nodes of the tree.
+
+Given a max-heap with N nodes in an array of length N + 1 or greater, we can add an element to the heap by first putting it at index N, i.e., by adding it as a child of the node at index (N-1)/2. Notice that this may break the max-heap property: the new value might be greater than its parent's value. If so, we swap the two values. But then, if the parent node is not the root node, the max-heap property may still be broken because the parent node's value might be greater than its own parent node's value. So we apply this *sift up* operation recursively to fully restore the max-heap property.
+- Declare a method `heapAdd(array, n)` that adds the element at index `n` to the heap at indices 0 (inclusive) through `n` (exclusive), using the sift up algorithm.
+
+Given a max-heap with N nodes, we can remove the root element by replacing it with the value of the leaf node at index N-1. At this point, the max-heap property may be broken because the new root value might be less than the value of one (or both) of the root node's children. In that case, we swap the root node's value with that of the child with the greatest value. But then, if this child has children of its own, the max-heap property may still be broken since this child's value may now be less than that of one (or both) of its own children. Therefore, we recursively apply this *sift down* operation to the child.
+- Declare a method `heapRemove(array, n)` that removes the root element (i.e. the greatest element) of the heap at indices 0 (inclusive) through `n` (exclusive) and returns its value.
+
+We can turn an array into a max-heap (known as *heapification*) as follows:
+- Notice, first, that the heap consisting only of the node at index 0 is automatically a max-heap.
+- We can add each next element of the array to the heap using the `heapAdd` method defined above.
+
+We can sort an array by first heapifying it and then repeatedly removing the greatest element and putting it in the space freed.
+- Declare a method `heapSort` such that `heapSort(array)` sorts `array` using this *heap sort* algorithm.
+
+## Search tree
+
+A search tree is an *ordered* tree: the order of the children of a given node is important. Specifically, in a search tree, if child A is before child B, then the values stored in the subtree rooted at child A are less than the values stored in the subtree rooted at child B.
 
 - Declare a class `TreeNode` that represents a node in a search tree. Each node stores a reference to its first child node (or `null` if it has no children), its next sibling node (or `null` if it has no further siblings), and its value. The *children* of a node are the first child and the first child's siblings.
 - Declare a method that counts the number of children of a given node.
@@ -98,7 +123,7 @@ A *search tree* is a tree where each node has a *value*.
 - Declare a method that returns an array containing the values of the descendants of a given node that are leaves. One can think of the tree rooted in the given node as storing this set of values.
 - Declare a method that checks that the values of all descendants of a given node that are leaves are less than or equal to a given value.
 - Declare a method that checks that for each descendant D of a given node that has a next sibling, the values of the descendants of D that are leaves are less than or equal to the value of D. In this case, we say the tree is *valid*. We say a node is an *interior node* if it is not a leaf. The value of an interior node that has a next sibling serves as an *upper bound* on the values stored by the tree rooted in that node. (The value of an interior node that does not have a next sibling has no meaning.)
-- A sequence of trees is called a *forest*. Declare a method that returns whether a given value is the value of a leaf in the forest rooted at a given node. Use the values of the interior nodes for performance. Specifically:
+- A sequence of trees is called a *forest*. The sequence of the children of a given node is, in particular, a forest. Declare a method that returns whether a given value is the value of a leaf in the forest rooted at a given node. Use the values of the interior nodes for performance. Specifically:
   - If the given node is a null reference, return `false`.
   - If the given node is a leaf:
     - If the given value is less than the node's value, return `false`.
