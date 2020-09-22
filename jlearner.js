@@ -1227,6 +1227,19 @@ class MethodDeclaration extends Declaration {
   }
 }
 
+class BuiltInMethod {
+  constructor(returnType, parameterDeclarations, body) {
+    this.returnType = returnType;
+    this.parameterDeclarations = parameterDeclarations;
+    this.body = body;
+  }
+  enter() {}
+  check() {}
+  async call(callExpr, args) {
+    return await this.body(callExpr, args);
+  }
+}
+
 class FieldDeclaration extends Declaration {
   constructor(loc, type, name) {
     super(loc);
@@ -1873,7 +1886,9 @@ let toplevelMethods;
 
 function checkDeclarations(declarations) {
   classes = {};
-  toplevelMethods = {};
+  toplevelMethods = {
+    'input': new BuiltInMethod({type: intType}, [], (callExpr, args) => inputInt(callExpr.loc))
+  };
   for (let declaration of declarations) {
     if (declaration instanceof Class) {
       if (has(classes, declaration.name))
@@ -1897,8 +1912,62 @@ let variablesTable = document.getElementById('variables');
 let toplevelScope;
 let mainStackFrame;
 let callStack;
+let nbCharsOfInputConsumed;
+let consumedInputTextMarker = null;
+
+function getPos(text) {
+  let line = 0;
+  let i = 0;
+  for (;;) {
+    let nextNewline = text.indexOf('\n', i);
+    if (nextNewline == -1)
+      return {line, ch: text.length - i};
+    line++;
+    i = nextNewline + 1;
+  }
+}
+
+function inputInt(loc) {
+  let inputText = inputEditor.getValue();
+  let unconsumedText = inputText.substring(nbCharsOfInputConsumed);
+  let i = 0;
+  for (;;i++) {
+    if (i == unconsumedText.length)
+      throw new LocError(loc, "End of input");
+    let c = unconsumedText.charAt(i);
+    if (c == ' ' || c == '\n' || c == '\r' || c == '\t')
+      continue;
+    if ('0' <= c && c <= '9' || c == '-') {
+      let j = i + 1;
+      for (;; j++) {
+        if (j == unconsumedText.length)
+          break;
+        let c = unconsumedText.charAt(j);
+        if (!('0' <= c && c <= '9'))
+          break;
+      }
+      let text = unconsumedText.substring(i, j);
+      let value = text|0;
+      if (text !== ""+value)
+        throw new LocError(loc, "Input should be an int value: \"" + text + "\"");
+      nbCharsOfInputConsumed += j;
+      if (consumedInputTextMarker !== null)
+        consumedInputTextMarker.clear();
+      consumedInputTextMarker = inputEditor.markText({line: 0, ch: 0}, getPos(inputText.substring(0, nbCharsOfInputConsumed)), {
+        inclusiveLeft: true,
+        inclusiveRight: false,
+        className: 'consumedInput',
+        readOnly: true
+      });
+      push(new OperandBinding(null, value));
+      return;
+    } else
+      throw new LocError(loc, "Input should be an int value: \"" + c + "\"");
+  }
+}
 
 function resetMachine() {
+  nbCharsOfInputConsumed = 0;
   toplevelScope = new Scope(null);
   mainStackFrame = new StackFrame("(toplevel)", toplevelScope);
   callStack = [mainStackFrame];
@@ -2483,13 +2552,28 @@ assert copied.value == first.value;
 assert copied.next != first.next;
 assert copied.next.value == first.next.value;`,
   expression: ''
-}]
+},
+{
+  title: 'Input',
+  declarations: '',
+  statements:
+`assert input() == 10;
+assert input() == 20;`,
+  expression: '',
+  input: '10 20'
+}
+]
 
 function setExample(example) {
   reset();
   declarationsEditor.setValue(example.declarations || "");
   statementsEditor.setValue(example.statements || "");
   expressionEditor.setValue(example.expression || "");
+  if ('input' in example) {
+    document.getElementById('io').style.display = 'block';
+    inputEditor.setValue(example.input);
+  } else
+    document.getElementById('io').style.display = 'none';
 }
 
 setExample(examples[0]);

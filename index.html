@@ -27,6 +27,7 @@
     .lint-error-icon {color: white; background-color: red; font-weight: bold; border-radius: 50%; padding: 0 3px; margin-right: 7px;}
     .syntax-error {background-color: #ff8080}
     .current-instruction {background-color: lightgreen}
+    .consumedInput {color: lightgray}
     </style>
   </head>
   <body style="background: lightgray">
@@ -46,6 +47,12 @@
       <p><textarea id="results"></textarea></p>
     </td>
     <td id="machine" height="100%" style="vertical-align: top; padding-left: 20px">
+      <div id="io" style="display: none">
+      <p><b>Input</b></p>
+      <p><textarea rows="3" id="input"></textarea></p>
+      <p><b>Output</b></p>
+      <p><textarea rows="3" id="output"></textarea></p>
+      </div>
       <p>
         <button id="stepButton" onclick="step()" disabled>Step</button>
         <button id="smallStepButton" onclick="smallStep()" disabled>Small step</button>
@@ -132,6 +139,17 @@
         evaluateExpression(false);
       }
     });
+    var inputEditor = CodeMirror.fromTextArea(document.getElementById('input'), {
+      lineNumbers: false,
+      mode: 'text/plain'
+    });
+    inputEditor.setSize("100%", "3em");
+    var outputEditor = CodeMirror.fromTextArea(document.getElementById('output'), {
+      lineNumbers: false,
+      readOnly: true,
+      mode: 'text/plain'
+    });
+    outputEditor.setSize("100%", "3em");
   </script>
       <!-- script>
       let machine = document.getElementById('arrows-svg');
