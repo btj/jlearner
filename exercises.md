@@ -22,6 +22,10 @@ If you want to easily copy-paste all of your code into and out of JLearner in on
   ```
 - Expression: `main()`
 
+Note: all Java language constructs that you need to use for these exercises are also used in the examples that you can find via the drop-down menu at the top of the JLearner webpage, so you may want to open a second copy of JLearner in a separate window so that you can look at a relevant example while making an exercise.
+
+Note: some later exercises build on earlier ones, so keep your solutions.
+
 ## Methods, loops
 
 - Declare a method that computes the average (rounded toward zero) between two given integers (Note: in Java, if `x` and `y` are of type `int`, `x / y` is the quotient of `x` and `y`, rounded toward zero.)
@@ -38,7 +42,7 @@ If you want to easily copy-paste all of your code into and out of JLearner in on
 ## Objects
 
 - Declare a class `Vector` such that an object of this class can be used to store a two-dimensional vector with integer coordinates `x` and `y`. (That is, declare a class `Vector` with a field `x` and a field `y`.)
-- Declare a method that returns the size (rounded down) of the vector stored in a given `Vector` object. (Use the square root method you declared earlier.)
+- Declare a method that returns the magnitude (also known as the Euclidian length) (rounded down) of the vector stored in a given `Vector` object. (Use the square root method you declared earlier.)
 - Declare a method that returns whether the vector stored in one given `Vector` object is larger than the vector stored in another given `Vector` object. Use the size method you declared in the previous exercise.
 - Declare a method that returns a new `Vector` object that stores the sum of the vectors stored in two given `Vector` objects.
 - Declare a method that translates (shifts) the vector stored in a given `Vector` object by the vector stored in another given `Vector` object. It updates the first `Vector` object; it does not create a new object.
