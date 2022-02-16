@@ -1440,6 +1440,9 @@ class Parser {
         let e = this.parsePostfixExpression();
         return new BinaryOperatorExpression(this.popLoc(), instrLoc, new IntLiteral(instrLoc, 0, true), '-', e);
       }
+      case "{":
+      case "[":
+        this.parseError("A Java expression cannot start with { or [. To create an array, write 'new ElementType[] {Elements}'. For example: 'new int[] {10, 20, 30}'.");
       default:
         this.parseError("Number or identifier expected");
     }
