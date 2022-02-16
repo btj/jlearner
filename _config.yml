@@ -1,0 +1,10 @@
+lsi: false
+safe: true
+incremental: false
+highlighter: rouge
+markdown: GFM
+kramdown:
+  syntax_highlighter: rouge
+
+plugins:
+- jekyll-default-layout
