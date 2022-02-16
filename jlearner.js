@@ -342,6 +342,14 @@ class BinaryOperatorExpression extends Expression {
         if (!(lt instanceof ReferenceType && rt instanceof ReferenceType))
          if (lt != rt)
            this.executionError("Cannot compare a " + lt + " and a " + rt);
+        if (this.leftOperand instanceof NewExpression)
+          this.executionError("An expression of the form 'new ... == ...' will always evaluate to 'false' because it compares the objects' identity, not their contents. To compare the objects' contents, compare their fields one by one.");
+        if (this.leftOperand instanceof AbstractNewArrayExpression)
+          this.executionError("An expression of the form 'new ... == ...' will always evaluate to 'false' because it compares the arrays' identity, not their contents. To compare the arrays' contents, compare their elements one by one.");
+        if (this.rightOperand instanceof NewExpression)
+          this.executionError("An expression of the form '... == new ...' will always evaluate to 'false' because it compares the objects' identity, not their contents. To compare the objects' contents, compare their fields one by one.");
+        if (this.rightOperand instanceof AbstractNewArrayExpression)
+          this.executionError("An expression of the form '... == new ...' will always evaluate to 'false' because it compares the arrays' identity, not their contents. To compare the arrays' contents, compare their elements one by one.");
         return booleanType;
       default:
         this.executionError("Operator not supported");
@@ -688,7 +696,13 @@ class NewExpression extends Expression {
   }
 }
 
-class NewArrayExpression extends Expression {
+class AbstractNewArrayExpression extends Expression {
+  constructor(loc, instrLoc) {
+    super(loc, instrLoc);
+  }
+}
+
+class NewArrayExpression extends AbstractNewArrayExpression {
   constructor(loc, instrLoc, elementType, lengthExpr) {
     super(loc, instrLoc);
     this.elementType = elementType;
@@ -712,7 +726,7 @@ class NewArrayExpression extends Expression {
   }
 }
 
-class NewArrayWithInitializerExpression extends Expression {
+class NewArrayWithInitializerExpression extends AbstractNewArrayExpression {
   constructor(loc, instrLoc, elementType, elementExpressions) {
     super(loc, instrLoc);
     this.elementType = elementType;
