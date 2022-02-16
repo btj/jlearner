@@ -126,6 +126,19 @@ assert sum == 3 + 4 + 5;
 <tr><td>
 
 ```python
+[1, 3, 5]
+```
+
+</td><td>
+
+```java
+new int[] {1, 3, 5}
+```
+
+</td></tr>
+<tr><td>
+
+```python
 xs = [1, 3, 5]
 sum = 0
 for x in xs:
@@ -151,6 +164,26 @@ Note: `int[] xs = new int[] {1, 3, 5};` can be abbreviated as `int[] xs = {1, 3,
 <tr><td>
 
 ```python
+def same(xs, ys):
+    return xs is ys
+```
+
+</td><td>
+
+```java
+boolean same(int[] xs, int[] ys) {
+    return xs == ys;
+}
+```
+
+</td><td>
+
+In Java, if `xs` and `ys` are arrays, `xs == ys` compares the arrays' **identity**, not their **contents**. That is, it returns `true` only if `xs` and `ys` refer to the same array object, i.e. the same memory location. It corresponds to Python's `is` operator.
+
+</td></tr>
+<tr><td>
+
+```python
 def equals(xs, ys):
     return xs == ys
 ```
@@ -169,6 +202,10 @@ boolean equals(int[] xs, int[] ys) {
     return true;
 }
 ```
+
+</td><td>
+
+In Java, to compare the contents of two arrays you need to use a loop to compare the elements one-by-one. (In JLearner, you need to write such a loop yourself; in Java, you can use the library method `Arrays.equals`.)
 
 </td></tr>
 <tr><td>
