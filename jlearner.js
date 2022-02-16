@@ -1406,6 +1406,8 @@ class Parser {
         if (!(type instanceof ClassTypeExpression))
           throw new LocError(type.loc, "Class type expected");
         this.expect('(');
+        if (this.token != ')')
+          this.parseError("JLearner does not support constructor arguments. To specify field values, first create an object and then initialize its fields. For example: 'Account myAccount = new Account(); myAccount.balance = 1000;'");
         this.expect(')');
         return new NewExpression(this.popLoc(), instrLoc, type.name);
       case "(":
