@@ -1322,7 +1322,18 @@ class Parser {
 
   expect(token) {
     if (this.token != token)
-      this.parseError((token == 'EOF' ? "end of input " : token) + " expected");
+      if (token == 'IDENT')
+        if (this.token == 'TYPE_IDENT')
+          this.parseError("A variable or method name must start with a lowercase letter");
+        else
+          this.parseError("Name expected");
+      else if (token == 'TYPE_IDENT')
+        if (this.token == 'IDENT')
+          this.parseError("A class name must start with an uppercase letter");
+        else
+          this.parseError("Class name expected");
+      else
+        this.parseError((token == 'EOF' ? "end of input " : token) + " expected");
     this.next();
     return this.lastValue;
   }
@@ -1429,6 +1440,8 @@ class Parser {
           this.pushStart();
           this.next();
           this.pushStart();
+          if (this.token != 'IDENT')
+            this.parseError("Field name expected");
           let x = this.expect('IDENT');
           let nameLoc = this.popLoc();
           let instrLoc = this.popLoc();
@@ -1747,6 +1760,11 @@ class Parser {
     let type = this.tryParseType();
     if (type != null) {
       this.pushStart();
+      if (this.token != 'IDENT')
+        if (this.token == 'TYPE_IDENT')
+          this.parseError("A variable name must start with a lowercase letter");
+        else
+          this.parseError("Variable name expected");
       let x = this.expect("IDENT");
       let nameLoc = this.popLoc();
       this.expect("=");
@@ -1809,6 +1827,11 @@ class Parser {
     let type = this.parseType();
     if (this.token == '(' && type instanceof ClassTypeExpression)
       this.parseError("Constructors are not (yet) supported by JLearner. Instead, define a 'create' method outside the class.");
+    if (this.token != 'IDENT')
+      if (this.token == 'TYPE_IDENT')
+        this.parseError("A field name must start with a lowercase letter");
+      else
+        this.parseError("Field name expected");
     let x = this.expect('IDENT');
     if (this.token == '(')
       this.parseError("Methods inside classes are not (yet) supported by JLearner. Instead, define the method outside the class.");
@@ -1834,6 +1857,11 @@ class Parser {
         // Parse method
         let type = this.parseType();
         this.pushStart();
+        if (this.token != 'IDENT')
+          if (this.token == 'TYPE_IDENT')
+            this.parseError("A method name must start with a lowercase letter");
+          else
+            this.parseError("Method name expected");
         let name = this.expect('IDENT');
         let nameLoc = this.popLoc();
         this.expect('(');
@@ -1843,6 +1871,11 @@ class Parser {
             this.pushStart();
             let paramType = this.parseType();
             this.pushStart();
+            if (this.token != 'IDENT')
+              if (this.token == 'TYPE_IDENT')
+                this.parseError("A parameter name must start with a lowercase letter");
+              else
+                this.parseError("Parameter name expected");
             let paramName = this.expect('IDENT');
             let paramNameLoc = this.popLoc();
             parameters.push(new ParameterDeclaration(this.popLoc(), paramType, paramNameLoc, paramName));
