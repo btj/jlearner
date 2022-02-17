@@ -231,12 +231,12 @@ class Expression extends ASTNode {
     return this.type;
   }
 
-  checkAgainst(env, targetType) {
+  checkAgainst(env, targetType, targetTypeExplanation) {
     let t = this.check_(env);
     if (targetType instanceof ReferenceType && t == nullType)
       return;
     if (!targetType.equals(t))
-      this.executionError("Expression has type " + t + ", but an expression of type " + targetType + " was expected");
+      this.executionError("Expression has type " + t + ", but an expression of type " + targetType + (targetTypeExplanation ? " (" + targetTypeExplanation + ")" : "") + " was expected");
   }
   
   async evaluateBinding(env) {
@@ -428,7 +428,14 @@ class AssignmentExpression extends Expression {
   check(env) {
     if (this.op == '=') {
       let t = this.lhs.check_(env);
-      this.rhs.checkAgainst(env, t);
+      let explanation;
+      if (this.lhs instanceof VariableExpression)
+        explanation = `the declared type of variable '${this.lhs.name}'`;
+      else if (this.lhs instanceof SelectExpression)
+        explanation = `the declared type of field '${this.lhs.selector}'`;
+      else if (this.lhs instanceof SubscriptExpression)
+        explanation = "the array's element type";
+      this.rhs.checkAgainst(env, t, explanation);
       return t;
     } else  {
       this.lhs.checkAgainst(env, intType);
@@ -856,7 +863,7 @@ class CallExpression extends Expression {
       if (method.parameterDeclarations.length != this.arguments.length)
         this.executionError("Incorrect number of arguments");
       for (let i = 0; i < this.arguments.length; i++)
-        this.arguments[i].checkAgainst(env, method.parameterDeclarations[i].type.type);
+        this.arguments[i].checkAgainst(env, method.parameterDeclarations[i].type.type, `the declared type of parameter '${method.parameterDeclarations[i].name}'`);
       return method.returnType.type;
     }
   }
@@ -1049,7 +1056,7 @@ class ReturnStatement extends Statement {
       if (resultType.value != voidType)
         this.executionError("Return value expected");
     } else {
-      this.operand.checkAgainst(env, resultType.value);
+      this.operand.checkAgainst(env, resultType.value, "the return type specified before the method name in the method header");
     }
   }
 
