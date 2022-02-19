@@ -1240,6 +1240,8 @@ class MethodDeclaration extends Declaration {
         break;
     }
     if (result === undefined) {
+      if (this.returnType.type !== voidType)
+        throw new LocError(this.implicitReturnStmt.loc, "Non-void method returns without a specifying a return value");
       await checkBreakpoint(this.implicitReturnStmt);
       result = "void";
     }
