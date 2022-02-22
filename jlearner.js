@@ -47,6 +47,8 @@ class Scanner {
     this.doc = doc;
     this.text = text;
     this.pos = -1;
+    this.startOfLine = 0;
+    this.isOnNewLine = true;
     this.eat();
   }
 
@@ -55,15 +57,23 @@ class Scanner {
     this.c = (this.pos == this.text.length ? "<EOF>" : this.text.charAt(this.pos));
   }
 
+  getIndentation() {
+    return this.text.slice(this.startOfLine, this.tokenStart);
+  }
+
   nextToken() {
     eatWhite:
     for (;;) {
       switch (this.c) {
         case ' ':
         case '\t':
+          this.eat();
+          break;
         case '\n':
         case '\r':
           this.eat();
+          this.startOfLine = this.pos;
+          this.isOnNewLine = true;
           break;
         case '/':
           let commentStart = this.pos;
@@ -98,6 +108,8 @@ class Scanner {
       }
     }
     this.tokenStart = this.pos;
+    this.tokenIsOnNewLine = this.isOnNewLine;
+    this.isOnNewLine = false;
     if (isDigit(this.c)) {
       this.eat();
       while (isDigit(this.c))
@@ -1831,7 +1843,23 @@ class Parser {
   
   parseStatements(terminators) {
     let statements = [];
+    let indentation = null;
     while (!(this.token in terminators)) {
+      if (!this.scanner.tokenIsOnNewLine)
+        this.parseError("In JLearner, each statement must be on a separate line");
+      if (indentation === null)
+        indentation = this.scanner.getIndentation();
+      else {
+        const stmtIndentation = this.scanner.getIndentation();
+        if (stmtIndentation !== indentation) {
+          if (stmtIndentation.startsWith(indentation))
+            this.parseError("Less indentation expected");
+          else if (indentation.startsWith(stmtIndentation))
+            this.parseError("More indentation expected. To end the block, insert a '}'");
+          else
+            this.parseError("Indentation does not match earlier statements in this block");
+        }
+      }
       let stmt = this.parseStatement();
       statements.push(stmt);
     }
@@ -2486,9 +2514,12 @@ int sum(Node node) {
   return sum;
 }`,
   statements:
-`Node first = new Node(); first.value = 1;
-Node second = new Node(); second.value = 2;
-Node third = new Node(); third.value = 3;
+`Node first = new Node();
+first.value = 1;
+Node second = new Node();
+second.value = 2;
+Node third = new Node();
+third.value = 3;
 first.next = second;
 second.next = third;
 assert sum(first) == 6;`,
@@ -2507,9 +2538,12 @@ int sum(Node node) {
     return node.value + sum(node.next);
 }`,
   statements:
-`Node first = new Node(); first.value = 1;
-Node second = new Node(); second.value = 2;
-Node third = new Node(); third.value = 3;
+`Node first = new Node();
+first.value = 1;
+Node second = new Node();
+second.value = 2;
+Node third = new Node();
+third.value = 3;
 first.next = second;
 second.next = third;
 assert sum(first) == 6;`,
