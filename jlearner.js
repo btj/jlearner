@@ -1707,6 +1707,27 @@ class Parser {
       this.parseError("Type expected");
     return type;
   }
+
+  parseIndentedStatementBlock(parentIndentation, parentConstruct) {
+    if (this.token == '{')
+      return this.parseStatement();
+    if (!this.scanner.tokenIsOnNewLine)
+      this.parseError("In JLearner, this statement must be on a separate line");
+    const blockIndentation = this.scanner.getIndentation();
+    if (blockIndentation == parentIndentation || !blockIndentation.startsWith(parentIndentation))
+      this.parseError(`This statement must be indented with respect to the ${parentConstruct} it is a part of`);
+    this.pushStart();
+    let stmts = [];
+    for (;;) {
+      stmts.push(this.parseStatement());
+      if (!this.scanner.tokenIsOnNewLine || this.scanner.getIndentation() != blockIndentation)
+        break;
+    }
+    const loc = this.popLoc();
+    if (stmts.length != 1)
+      throw new LocError(loc, `Only the first statement of this indented block is part of the ${parentConstruct}, because Java ignores indentation. Surround the block by { } to make Java recognize it as such.`);
+    return stmts[0];
+  }
   
   parseStatement() {
     this.pushStart();
@@ -1718,16 +1739,18 @@ class Parser {
         return new BlockStatement(this.popLoc(), stmts);
       }
       case 'while': {
+        const parentIndentation = this.scanner.getIndentation();
         this.pushStart();
         this.next();
         let instrLoc = this.popLoc();
         this.expect('(');
         let condition = this.parseExpression();
         this.expect(')');
-        let body = this.parseStatement();
+        let body = this.parseIndentedStatementBlock(parentIndentation, "'while' statement");
         return new WhileStatement(this.popLoc(), instrLoc, condition, body);
       }
       case 'for': {
+        let parentIndentation = this.scanner.getIndentation();
         this.pushStart();
         this.next();
         let instrLoc = this.popLoc();
@@ -1752,7 +1775,7 @@ class Parser {
             this.next();
           }
         this.expect(')');
-        let body = this.parseStatement();
+        let body = this.parseIndentedStatementBlock(parentIndentation, "'for' statement");
         let loc = this.popLoc();
         let bodyStmts = [body];
         for (let incr of incrs)
@@ -1773,17 +1796,18 @@ class Parser {
         return new ReturnStatement(this.popLoc(), instrLoc, e);
       }
       case 'if': {
+        let parentIndentation = this.scanner.getIndentation();
         this.pushStart();
         this.next();
         let instrLoc = this.popLoc();
         this.expect('(');
         let condition = this.parseExpression();
         this.expect(')');
-        let thenBody = this.parseStatement();
+        let thenBody = this.parseIndentedStatementBlock(parentIndentation, "'if' statement");
         let elseBody = null;
         if (this.token == 'else') {
           this.next();
-          elseBody = this.parseStatement();
+          elseBody = this.parseIndentedStatementBlock(parentIndentation, "'else' branch");
         }
         return new IfStatement(this.popLoc(), instrLoc, condition, thenBody, elseBody);
       }
