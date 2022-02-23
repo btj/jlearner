@@ -147,6 +147,14 @@ A search tree is an *ordered* tree: the order of the children of a given node is
     - If the given node has a next sibling and the given value is greater than the node's value, recursively add the given value to the given node's next sibling, set the given node's next sibling reference to the return value, and return the given node.
 - Declare a method that removes a given value from the forest rooted in a given node and returns the new root node.
 
+#### Example
+
+![A search tree](search_tree.png)
+
+Consider the example tree shown above. The node id=8 has two children: id=7 and id=6. Node id=7 itself has three children: id=3, id=2, and id=1. Node id=6 has two children: id=5 and id=4. All nodes besides id=8 are descendants of id=8. The leaf nodes are id=3, id=2, id=1, id=5, and id=4. The interior nodes are id=8, id=7, and id=6.
+
+This tree is a search tree: the values 10, 20, 30 stored in the subtree rooted at id=7 are less than the values 40, 50 stored in the subtree rooted at id=6. The search tree is valid: the value 30 of interior node id=7 is an upper bound for the values 10, 20, 30 stored by the subtree rooted in that node. The values of interior nodes id=8 and id=6 have no meaning because they have no next sibling.
+
 ### Balanced search tree
 
 - Declare a method that returns the maximum of the two given numbers.
@@ -157,5 +165,7 @@ A search tree is an *ordered* tree: the order of the children of a given node is
 - Declare a method that adds a given value to the forest rooted in a given node, while ensuring that if the forest was two-three and had at most three trees before, it will again be two-three and have at most three trees afterwards. Specifically, if the forest has four trees, combine the trees to create two higher trees. (Notice that this operation may change the height of the forest.)
 - Declare a method that removes a given value from the forest rooted in a given node, while ensuring that if the forest was two-three before, it will again be two-three afterwards. Specifically, if after the operation, a tree has only one child, merge it with a sibling to obtain either two trees of two children (if the sibling had three children) or one tree with three children (if the sibling had two children). (Notice that this operation does not change the height of the forest.)
 - Declare a method that removes a given value from the forest rooted in a given node, while ensuring that if the forest was two-three before, it will again be two-three afterwards and furthermore, if it has only one tree, that tree is a leaf. Specifically, if after the operation, there is only one tree, replace it with its children. (Notice that this operation may change the height of the forest.)
+
+The example tree shown above is perfectly balanced and two-three.
 
 Notice that if a forest is two-three and has at most three trees, then checking whether the forest has a leaf with a given value, adding a given value, and removing a given value take time proportional to the height of the forest in the worst case. Furthermore, if the forest is perfectly balanced as well, the number of leaves in the forest is at least 2^(H-1) (rounded down), where H is the height of the forest, or, in other words, the height of the forest is at most the 2-logarithm of the number of leaves plus 1. That means that the lookup, add, and remove operations take time logarithmic in the number of leaves.
