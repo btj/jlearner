@@ -2,12 +2,13 @@
 <html>
   <head>
     <title>JLearner</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.51.0/lib/codemirror.css">
-    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.51.0/lib/codemirror.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.51.0/addon/edit/matchbrackets.js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.51.0/addon/hint/show-hint.css">
-    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.51.0/addon/hint/show-hint.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.51.0/mode/clike/clike.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.2/lib/codemirror.css">
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.2/lib/codemirror.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.2/addon/edit/matchbrackets.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.2/addon/hint/show-hint.css">
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.2/addon/hint/show-hint.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.2/mode/clike/clike.js"></script>
+    <script src="http://cdn.jsdelivr.net/npm/cm-resize@1"></script>
     <style>
     body {font-family: Arial, Helvetica, sans-serif}
     .result { font-style: italic; color: blue }
@@ -91,6 +92,7 @@
       mode: 'text/x-java'
     });
     declarationsEditor.setSize("100%", "15em");
+    cmResize(declarationsEditor);
     declarationsEditor.on('changes', () => clearErrorWidgets());
     var statementsEditor = CodeMirror.fromTextArea(document.getElementById('statements'), {
       lineNumbers: false,
@@ -99,6 +101,7 @@
     });
     statementsEditor.on('changes', () => clearErrorWidgets());
     statementsEditor.setSize("100%", "10em");
+    cmResize(statementsEditor);
     statementsEditor.on('keydown', (editor, event) => {
       if (event.keyCode == 13 && event.ctrlKey) {
         event.preventDefault();
@@ -121,11 +124,13 @@
     });
     expressionEditor.on('changes', () => clearErrorWidgets());
     expressionEditor.setSize("100%", "3em");
+    cmResize(expressionEditor);
     var resultsEditor = CodeMirror.fromTextArea(document.getElementById('results'), {
       matchBrackets: true,
       mode: 'text/plain'
     });
     resultsEditor.setSize("100%", "10em");
+    cmResize(resultsEditor);
     expressionEditor.on('keydown', (editor, event) => {
       if (event.keyCode == 13 && event.ctrlKey) {
         event.preventDefault();
