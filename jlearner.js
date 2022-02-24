@@ -2247,6 +2247,7 @@ function parseDeclarations() {
   let text = declarationsEditor.getValue();
   if (lastCheckedDeclarations != null && lastCheckedDeclarations == text)
     return;
+  lastCheckedDeclarations = null;
   resetMachine();
   updateMachineView();
   let parser = new Parser(declarationsEditor, text);
