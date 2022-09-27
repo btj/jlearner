@@ -311,6 +311,38 @@ class NullLiteral extends Expression {
   }
 }
 
+class UnaryOperatorExpression extends Expression {
+  constructor(loc, instrLoc, operator, operand) {
+    super(loc, instrLoc);
+    this.operator = operator;
+    this.operand = operand;
+  }
+
+  check(env) {
+    switch (this.operator) {
+      case '!':
+        this.operand.checkAgainst(env, booleanType);
+        return booleanType;
+        default:
+          this.executionError("Operator not supported");
+    }
+  }
+
+  eval(v) {
+    switch (this.operator) {
+      case '!': return !v;
+      default: this.executionError("Operator '" + this.operator + "' not supported.");
+    }
+  }
+  
+  async evaluate(env) {
+    await this.operand.evaluate(env);
+    await this.breakpoint();
+    let [v] = pop(1);
+    this.push(this.eval(v));
+  }
+}
+
 class BinaryOperatorExpression extends Expression {
   constructor(loc, instrLoc, leftOperand, operator, rightOperand) {
     super(loc, instrLoc);
@@ -1462,6 +1494,14 @@ class Parser {
         let instrLoc = this.popLoc();
         let e = this.parsePostfixExpression();
         return new BinaryOperatorExpression(this.popLoc(), instrLoc, new IntLiteral(instrLoc, 0, true), '-', e);
+      }
+      case "!": {
+        this.pushStart();
+        let op = this.token;
+        this.next();
+        let instrLoc = this.popLoc();
+        let e = this.parsePostfixExpression();
+        return new UnaryOperatorExpression(this.popLoc(), instrLoc, op, e);
       }
       case "{":
       case "[":
