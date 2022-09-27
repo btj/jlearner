@@ -1768,6 +1768,25 @@ class Parser {
       throw new LocError(loc, `Only the first statement of this indented block is part of the ${parentConstruct}, because Java ignores indentation. Surround the block by { } to make Java recognize it as such.`);
     return stmts[0];
   }
+
+  parseIfStatement(parentIndentation) {
+    this.pushStart();
+    this.next();
+    let instrLoc = this.popLoc();
+    this.expect('(');
+    let condition = this.parseExpression();
+    this.expect(')');
+    let thenBody = this.parseIndentedStatementBlock(parentIndentation, "'if' statement");
+    let elseBody = null;
+    if (this.token == 'else') {
+      this.next();
+      if (this.token == 'if' && !this.scanner.tokenIsOnNewLine)
+        elseBody = this.parseIfStatement(parentIndentation);
+      else
+        elseBody = this.parseIndentedStatementBlock(parentIndentation, "'else' branch");
+    }
+    return new IfStatement(this.popLoc(), instrLoc, condition, thenBody, elseBody);
+  }
   
   parseStatement() {
     this.pushStart();
@@ -1837,19 +1856,7 @@ class Parser {
       }
       case 'if': {
         let parentIndentation = this.scanner.getIndentation();
-        this.pushStart();
-        this.next();
-        let instrLoc = this.popLoc();
-        this.expect('(');
-        let condition = this.parseExpression();
-        this.expect(')');
-        let thenBody = this.parseIndentedStatementBlock(parentIndentation, "'if' statement");
-        let elseBody = null;
-        if (this.token == 'else') {
-          this.next();
-          elseBody = this.parseIndentedStatementBlock(parentIndentation, "'else' branch");
-        }
-        return new IfStatement(this.popLoc(), instrLoc, condition, thenBody, elseBody);
+        return this.parseIfStatement(parentIndentation);
       }
       case 'assert': {
         this.pushStart();
