@@ -84,7 +84,7 @@ A person is a sibling of another person if they are either a brother or a sister
 
 - Declare a method `merge` such that `merge(array1, array2)` returns an array that satisfies the following properties:
   - for each value V, the number of occurrences of V in the result array equals the number of occurrences of V in `array1` plus the number of occurrences of V in `array2`
-  - if `array1` and `array2` are sorted (i.e. the elements stored in the array are in stored ascending order), then the result array is sorted as well.
+  - if `array1` and `array2` are sorted (i.e. the elements in the array are stored in ascending order), then the result array is sorted as well.
 - Declare a method `subarray` such that `subarray(array, a, b)` returns an array of length `b - a` that contains the elements at indices `a` (inclusive) through `b` (exclusive) of `array`.
 - Declare a method `mergeSort` such that `mergeSort(array)` returns a new array that stores the sequence of values obtained by sorting the sequence of values stored in `array`. Hint: if the length of the array is 0 or 1, just return a copy of the array. Otherwise, use `subarray` to get the two halves of `array`, sort them using a recursive call of `mergeSort`, and then merge them using `merge`.
 
