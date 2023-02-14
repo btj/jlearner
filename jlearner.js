@@ -1793,7 +1793,7 @@ class Parser {
     switch (this.token) {
       case '{': {
         this.next();
-        let stmts = this.parseStatements({'}': true});
+        let stmts = this.parseStatements({'}': true, 'EOF': true});
         this.expect('}');
         return new BlockStatement(this.popLoc(), stmts);
       }
@@ -2013,7 +2013,7 @@ class Parser {
         }
         this.expect(')');
         this.expect('{');
-        let body = this.parseStatements({'}': true});
+        let body = this.parseStatements({'}': true, 'EOF': true});
         this.expect('}');
         return new MethodDeclaration(this.popLoc(), type, nameLoc, name, parameters, body);
     }
