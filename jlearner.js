@@ -1143,6 +1143,7 @@ class BlockStatement extends Statement {
 }
 
 let iterationCount = 0;
+let maxIterationCount = new URLSearchParams(window.location.search).get('maxIterationCount') || 1000;
 
 class WhileStatement extends Statement {
   constructor(loc, instrLoc, condition, body) {
@@ -1160,7 +1161,7 @@ class WhileStatement extends Statement {
     let result;
     while (result === undefined) {
       iterationCount++;
-      if (iterationCount == 1000)
+      if (iterationCount == maxIterationCount)
         this.executionError("Too many loop iterations. Possible infinite loop.");
       await this.condition.evaluate(env);
       await this.breakpoint();
