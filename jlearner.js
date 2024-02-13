@@ -2087,7 +2087,7 @@ let callStackArrows = []
 
 function createArrow(fromNode, toNode) {
   let svg = document.getElementById('arrows-svg');
-  let arrow = document.createElementNS('http://www.w3.org/2000/svg','line');
+  let arrow = document.getElementById('arrow').cloneNode(true);
   svg.appendChild(arrow);
   let fromRect = fromNode.getClientRects()[0];
   let toRect = toNode.getClientRects()[0];
@@ -2113,7 +2113,6 @@ function createArrow(fromNode, toNode) {
   arrow.x2.baseVal.value = toX;
   arrow.y2.baseVal.value = toY;
   arrow.style = "stroke:rgb(0,0,0);stroke-width:1";
-  arrow.setAttribute('marker-end', "url(#arrowhead)");
   
   let maxX = Math.max(fromX, toX);
   if (svg.width.baseVal.value < maxX)
