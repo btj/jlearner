@@ -1,3 +1,5 @@
+function assert(b) { if (!b) throw new Error("Assertion failure"); }
+
 function isDigit(c) { return '0' <= c && c <= '9'; }
 function isAlpha(c) { return 'A' <= c && c <= 'Z' || 'a' <= c && c <= 'z' || c == '_'; }
 
@@ -728,22 +730,47 @@ class JavaArrayObject extends JavaObject {
 }
 
 class NewExpression extends Expression {
-  constructor(loc, instrLoc, className) {
+  constructor(loc, instrLoc, className, args) {
     super(loc, instrLoc);
     this.className = className;
+    this.arguments = args;
   }
 
   check(env) {
     if (!has(classes, this.className))
       this.executionError("No such class: " + this.className);
-    return classes[this.className].type;
+    let class_ = classes[this.className];
+    let parameterDeclarations = [];
+    if (class_.ctor) {
+      parameterDeclarations = class_.ctor.parameterDeclarations;
+    }
+    if (parameterDeclarations.length != this.arguments.length)
+      this.executionError("Incorrect number of constructor arguments");
+    for (let i = 0; i < this.arguments.length; i++)
+      this.arguments[i].checkAgainst(env, parameterDeclarations[i].type.type, `the declared type of parameter '${parameterDeclarations[i].name}'`);
+    return class_.type;
   }
   
   async evaluate(env) {
-    await this.breakpoint();
     if (!has(classes, this.className))
       this.executionError("No such class: " + this.className);
-    this.push(new JavaClassObject(classes[this.className]));
+    let class_ = classes[this.className];
+    let parameterDeclarations = [];
+    if (class_.ctor) {
+      parameterDeclarations = class_.ctor.parameterDeclarations;
+    }
+    if (parameterDeclarations.length != this.arguments.length)
+      this.executionError("Incorrect number of constructor arguments");
+    for (let e of this.arguments)
+      await e.evaluate(env);
+    await this.breakpoint();
+    let args = pop(this.arguments.length);
+    let newObject = new JavaClassObject(class_);
+    if (class_.ctor) {
+      await class_.ctor.call(this, args, newObject);
+      pop(1);
+    }
+    this.push(newObject);
   }
 }
 
@@ -900,32 +927,64 @@ class CallExpression extends Expression {
   }
 
   check(env) {
+    let method;
     if (this.callee instanceof VariableExpression) {
       if (!has(toplevelMethods, this.callee.name))
-        this.executionError("No such method: " + this.callee.name);
-      let method = toplevelMethods[this.callee.name];
-      if (method.parameterDeclarations.length != this.arguments.length)
-        this.executionError("Incorrect number of arguments");
-      for (let i = 0; i < this.arguments.length; i++)
-        this.arguments[i].checkAgainst(env, method.parameterDeclarations[i].type.type, `the declared type of parameter '${method.parameterDeclarations[i].name}'`);
-      return method.returnType.type;
-    }
+        this.executionError("No such top-level method: " + this.callee.name);
+      method = toplevelMethods[this.callee.name];
+    } else if (this.callee instanceof SelectExpression) {
+      let targetType = this.callee.target.check(env);
+      if (targetType instanceof ClassType) {
+        if (!has(targetType.class_.methods, this.callee.selector))
+          this.executionError(`No method called ${this.callee.selector} in class ${this.callee.target.class_.name}`);
+        method = targetType.class_.methods[this.callee.selector];
+      } else if (targetType instanceof ArrayType) {
+        if (this.callee.selector != 'clone')
+          this.executionError(`Array objects do not have a method called ${this.callee.selector}`);
+        return targetType;
+      } else
+        this.executionError(`Cannot call a method on an expression of type ${targetType}`);
+    } else
+      this.executionError("The callee expression must be a method name");
+    if (method.parameterDeclarations.length != this.arguments.length)
+      this.executionError("Incorrect number of arguments");
+    for (let i = 0; i < this.arguments.length; i++)
+      this.arguments[i].checkAgainst(env, method.parameterDeclarations[i].type.type, `the declared type of parameter '${method.parameterDeclarations[i].name}'`);
+    return method.returnType.type;
   }
 
   async evaluate(env) {
+    let targetObject;
+    let method;
     if (this.callee instanceof VariableExpression) {
       if (!has(toplevelMethods, this.callee.name))
         this.executionError("No such method: " + this.callee.name);
-      let method = toplevelMethods[this.callee.name];
-      if (method.parameterDeclarations.length != this.arguments.length)
-        this.executionError("Incorrect number of arguments");
-      for (let e of this.arguments)
-        await e.evaluate(env);
-      await this.breakpoint();
-      let args = pop(this.arguments.length);
-      await method.call(this, args);
+      method = toplevelMethods[this.callee.name];
+    } else if (this.callee instanceof SelectExpression) {
+      await this.callee.target.evaluate(env);
+      let [targetObject_] = pop(1);
+      targetObject = targetObject_;
+      if (targetObject === null)
+        this.executionError("Cannot call a method on null");
+      if (targetObject.type instanceof ArrayType) {
+        assert(this.callee.selector == 'clone');
+        await this.breakpoint();
+        let elements = [];
+        for (let i = 0; i < targetObject.length; i++)
+          elements.push(targetObject.fields[i].value);
+        this.push(new JavaArrayObject(targetObject.type.elementType, elements));
+        return;
+      }
+      method = targetObject.type.class_.methods[this.callee.selector];
     } else
-      this.executionError("Callee expression must be a name");
+      this.executionError("Callee expression must be a method name");
+    if (method.parameterDeclarations.length != this.arguments.length)
+      this.executionError("Incorrect number of arguments");
+    for (let e of this.arguments)
+      await e.evaluate(env);
+    await this.breakpoint();
+    let args = pop(this.arguments.length);
+    await method.call(this, args, targetObject);
   }
 }
 
@@ -1144,6 +1203,7 @@ class BlockStatement extends Statement {
 
 let iterationCount = 0;
 let maxIterationCount = new URLSearchParams(window.location.search).get('maxIterationCount') || 1000;
+const inModularMode = new URLSearchParams(window.location.search).get('modular') != null;
 
 class WhileStatement extends Statement {
   constructor(loc, instrLoc, condition, body) {
@@ -1252,7 +1312,12 @@ class MethodDeclaration extends Declaration {
     this.implicitReturnStmt = new ReturnStatement(closeBraceLoc, closeBraceLoc);
   }
 
-  enter() {
+  enter(receiverClass) {
+    this.receiverClass = receiverClass;
+    if (this.receiverClass) {
+      this.receiverParameter = new ParameterDeclaration(this.loc, new ClassTypeExpression(this.loc, this.receiverClass.name), this.loc, 'this');
+      this.receiverParameter.check();
+    }
     this.returnType.resolve();
     for (let p of this.parameterDeclarations)
       p.check();
@@ -1260,6 +1325,8 @@ class MethodDeclaration extends Declaration {
 
   check() {
     let env = new Scope(null);
+    if (this.receiverClass)
+      env.bindings['this'] = new LocalBinding(this.receiverParameter, this.receiverClass.type);
     for (let p of this.parameterDeclarations) {
       if (has(env.bindings, p.name))
         this.executionError("Duplicate parameter name");
@@ -1270,12 +1337,14 @@ class MethodDeclaration extends Declaration {
       stmt.check(env);
   }
 
-  async call(callExpr, args) {
+  async call(callExpr, args, receiver) {
     let env = new Scope(null);
     if (callStack.length >= maxCallStackDepth)
       throw new LocError(callExpr.loc, "Maximum call stack depth (= " + maxCallStackDepth + ") exceeded");
     let stackFrame = new StackFrame(this.name, env);
     callStack.push(stackFrame);
+    if (this.receiverClass)
+      env.bindings['this'] = new LocalBinding(this.receiverParameter, receiver);
     for (let i = 0; i < args.length; i++)
       env.bindings[this.parameterDeclarations[i].name] = new LocalBinding(this.parameterDeclarations[i], args[i]);
     let result;
@@ -1295,6 +1364,12 @@ class MethodDeclaration extends Declaration {
   }
 }
 
+class ConstructorDeclaration extends MethodDeclaration {
+  constructor(loc, nameLoc, name, parameterDeclarations, bodyBlock) {
+    super(loc, new LiteralTypeExpression(loc, voidType), nameLoc, name, parameterDeclarations, bodyBlock);
+  }
+}
+
 class FieldDeclaration extends Declaration {
   constructor(loc, type, name) {
     super(loc);
@@ -1308,21 +1383,45 @@ class FieldDeclaration extends Declaration {
 }
 
 class Class extends Declaration {
-  constructor(loc, name, fields) {
+  constructor(loc, name, members) {
     super(loc);
     this.name = name;
     this.type = new ClassType(this);
     this.fields = {};
-    for (let field of fields) {
-      if (has(this.fields, field.name))
-        field.executionError("A field with this name already exists in this class");
-      this.fields[field.name] = field;
+    this.ctor = null;
+    this.methods = {};
+    for (let member of members) {
+      if (member instanceof FieldDeclaration) {
+        if (has(this.fields, member.name))
+          member.executionError("A field with this name already exists in this class");
+        this.fields[member.name] = member;
+      } else if (member instanceof ConstructorDeclaration) {
+        if (this.ctor != null)
+          member.executionError("A constructor already exists in this class. JLearner does not support constructor overloading.");
+        this.ctor = member;
+      } else {
+        assert(member instanceof MethodDeclaration);
+        if (has(this.methods, member.name))
+          member.executionError("A method with this name already exists in this class. JLearner does not support method overloading.");
+        this.methods[member.name] = member;
+      }
     }
   }
 
   enter() {
     for (let field in this.fields)
       this.fields[field].enter();
+    if (this.ctor)
+      this.ctor.enter(this);
+    for (let method in this.methods)
+      this.methods[method].enter(this);
+  }
+
+  check() {
+    if (this.ctor)
+      this.ctor.check();
+    for (let method in this.methods)
+      this.methods[method].check();
   }
 }
 
@@ -1415,6 +1514,9 @@ class Parser {
       case "IDENT":
         this.next();
         return new VariableExpression(this.popLoc(), this.lastValue);
+      case "this":
+        this.next();
+        return new VariableExpression(this.popLoc(), 'this');
       case "new":
         this.next();
         let instrLoc = this.dupLoc();
@@ -1460,10 +1562,17 @@ class Parser {
         if (!(type instanceof ClassTypeExpression))
           throw new LocError(type.loc, "Class type expected");
         this.expect('(');
-        if (this.token != ')')
-          this.parseError("JLearner does not support constructor arguments. To specify field values, first create an object and then initialize its fields. For example: 'Account myAccount = new Account(); myAccount.balance = 1000;'");
+        let args = [];
+        if (this.token != ')') {
+          for (;;) {
+            args.push(this.parseExpression());
+            if (this.token != ',')
+              break;
+            this.next();
+          }
+        }
         this.expect(')');
-        return new NewExpression(this.popLoc(), instrLoc, type.name);
+        return new NewExpression(this.popLoc(), instrLoc, type.name, args);
       case "(":
         this.next();
         let e = this.parseExpression();
@@ -1951,72 +2060,115 @@ class Parser {
   
   parseClassMemberDeclaration() {
     this.pushStart();
-    this.parseModifiers();
-    let type = this.parseType();
-    if (this.token == '(' && type instanceof ClassTypeExpression)
-      this.parseError("Constructors are not (yet) supported by JLearner. Instead, define a 'create' method outside the class.");
-    if (this.token != 'IDENT')
-      if (this.token == 'TYPE_IDENT')
-        this.parseError("A field name must start with a lowercase letter");
-      else
-        this.parseError("Field name expected");
-    let x = this.expect('IDENT');
-    if (this.token == '(')
-      this.parseError("Methods inside classes are not (yet) supported by JLearner. Instead, define the method outside the class.");
-    if (this.token == '=')
-      this.parseError("Field initializers are not (yet) supported by JLearner.");
-    this.expect(';');
-    return new FieldDeclaration(this.popLoc(), type, x);
+    let accessibility = null;
+    for (;;) {
+      switch (this.token) {
+        case 'public':
+        case 'private':
+          if (accessibility != null)
+            this.parseError("Multiple accessibility modifiers are not allowed for a single declaration");
+          accessibility = this.token;
+          this.next();
+          break;
+        case 'protected':
+        case 'static':
+        case 'final':
+          this.parseError("This modifier is not supported by JLearner");
+        default:
+          let type = this.parseType();
+          if (this.token == '(' && type instanceof ClassTypeExpression) {
+            let nameLoc = this.dupLoc();
+            let parameters = this.parseParameterList();
+            this.expect('{');
+            let body = this.parseStatements({'}': true, 'EOF': true});
+            this.expect('}');
+            return new ConstructorDeclaration(this.popLoc(), nameLoc, type.name, parameters, body);
+          }
+          if (this.token != 'IDENT')
+            if (this.token == 'TYPE_IDENT')
+              this.parseError("A field or method name must start with a lowercase letter");
+            else
+              this.parseError("Field or method name expected");
+          this.pushStart();
+          let x = this.expect('IDENT');
+          let nameLoc = this.popLoc();
+          if (this.token == '(') {
+            let parameters = this.parseParameterList();
+            this.expect('{');
+            let body = this.parseStatements({'}': true, 'EOF': true});
+            this.expect('}');
+            return new MethodDeclaration(this.popLoc(), type, nameLoc, x, parameters, body);
+          }
+          if (this.token == '=')
+            this.parseError("Field initializers are not (yet) supported by JLearner.");
+          this.expect(';');
+          return new FieldDeclaration(this.popLoc(), type, x);
+      }
+    }
+  }
+
+  parseParameterList() {
+    this.expect('(');
+    let parameters = [];
+    if (this.token != ')') {
+      for (;;) {
+        this.pushStart();
+        let paramType = this.parseType();
+        this.pushStart();
+        if (this.token != 'IDENT')
+          if (this.token == 'TYPE_IDENT')
+            this.parseError("A parameter name must start with a lowercase letter");
+          else
+            this.parseError("Parameter name expected");
+        let paramName = this.expect('IDENT');
+        let paramNameLoc = this.popLoc();
+        parameters.push(new ParameterDeclaration(this.popLoc(), paramType, paramNameLoc, paramName));
+        if (this.token != ',')
+          break;
+        this.next();
+      }
+    }
+    this.expect(')');
+    return parameters;
   }
   
   parseDeclaration() {
     this.pushStart();
-    switch (this.token) {
-      case 'class':
-        this.next();
-        let x = this.expect('TYPE_IDENT');
-        this.expect('{');
-        let fields = [];
-        while (this.token != '}')
-          fields.push(this.parseClassMemberDeclaration());
-        this.expect('}');
-        return new Class(this.popLoc(), x, fields);
-      default:
-        // Parse method
-        let type = this.parseType();
-        this.pushStart();
-        if (this.token != 'IDENT')
-          if (this.token == 'TYPE_IDENT')
-            this.parseError("A method name must start with a lowercase letter");
-          else
-            this.parseError("Method name expected");
-        let name = this.expect('IDENT');
-        let nameLoc = this.popLoc();
-        this.expect('(');
-        let parameters = [];
-        if (this.token != ')') {
-          for (;;) {
-            this.pushStart();
-            let paramType = this.parseType();
-            this.pushStart();
-            if (this.token != 'IDENT')
-              if (this.token == 'TYPE_IDENT')
-                this.parseError("A parameter name must start with a lowercase letter");
-              else
-                this.parseError("Parameter name expected");
-            let paramName = this.expect('IDENT');
-            let paramNameLoc = this.popLoc();
-            parameters.push(new ParameterDeclaration(this.popLoc(), paramType, paramNameLoc, paramName));
-            if (this.token != ',')
-              break;
-            this.next();
-          }
-        }
-        this.expect(')');
-        this.expect('{');
-        let body = this.parseStatements({'}': true, 'EOF': true});
-        this.expect('}');
-        return new MethodDeclaration(this.popLoc(), type, nameLoc, name, parameters, body);
+    let accessibility = null;
+    for (;;) {
+      switch (this.token) {
+        case 'public':
+          if (accessibility !== null)
+            this.parseError("Only one accessibility modifier is allowed per declaration");
+          this.next();
+          accessibility = 'public';
+          break;
+        case 'class':
+          this.next();
+          let x = this.expect('TYPE_IDENT');
+          this.expect('{');
+          let members = [];
+          while (this.token != '}')
+            members.push(this.parseClassMemberDeclaration());
+          this.expect('}');
+          return new Class(this.popLoc(), x, members);
+        default:
+          // Parse method
+          let type = this.parseType();
+          this.pushStart();
+          if (this.token != 'IDENT')
+            if (this.token == 'TYPE_IDENT')
+              this.parseError("A method name must start with a lowercase letter");
+            else
+              this.parseError("Method name expected");
+          let name = this.expect('IDENT');
+          let nameLoc = this.popLoc();
+          let parameters = this.parseParameterList();
+          this.expect('{');
+          let body = this.parseStatements({'}': true, 'EOF': true});
+          this.expect('}');
+          return new MethodDeclaration(this.popLoc(), type, nameLoc, name, parameters, body);
+      }
     }
   }
   
@@ -2050,6 +2202,8 @@ function checkDeclarations(declarations) {
     classes[c].enter();
   for (let m in toplevelMethods)
     toplevelMethods[m].enter();
+  for (let c in classes)
+    classes[c].check();
   for (let m in toplevelMethods)
     toplevelMethods[m].check();
 }
@@ -2280,9 +2434,11 @@ async function handleError(body) {
         }
         errorWidgets.push(editor.markText(start, {line: editor.lastLine()}, {className: "syntax-error"}));
         addErrorWidget(editor, editor.lastLine(), ex.msg);
+        editor.scrollIntoView(start);
     } else {
         errorWidgets.push(editor.markText(start, end, {className: "syntax-error"}));
         addErrorWidget(editor, start.line, ex.msg);
+        editor.scrollIntoView({from: start, to: end}, 20);
       }
     } else {
       alert(ex);
@@ -2461,8 +2617,167 @@ function updateButtonStates() {
   document.getElementById('continueButton').disabled = !stepping;
 }
 
-examples = [{
-  title: 'Faculty',
+modularExamples = [{
+  title: 'IntList - flawed impl. (repr. exposure 1)',
+  declarations:
+`/**
+ * Each instance of this class represents a sequence of int values.
+ *
+ * @immutable
+ */
+public class IntList {
+
+  /** @invar | elements != null */
+  private int[] elements;
+
+  /**
+   * @post | result != null
+   * @creates | result
+   */
+  public int[] getElements() {
+    return this.elements;
+  }
+
+  /**
+   * @pre | 0 <= index && index < getElements().length
+   * @post | result == getElements()[index]
+   */
+  public int getElementAt(int index) {
+    return this.elements[index];
+  }
+
+  /**
+   * @pre | elements != null
+   * @post | Arrays.equals(getElements(), elements)
+   */
+  public IntList(int[] elements) {
+    this.elements = elements; // FLAW: REPRESENTATION EXPOSURE!
+  }
+}`,
+  statements:
+`int[] myInts = {10, 20, 30};
+IntList myIntList = new IntList(myInts);
+assert myIntList.getElementAt(0) == 10;
+
+myInts[0] = 11;
+assert myIntList.getElementAt(0) == 10; // Fails!
+// IntList objects are not immutable,
+// even though the documentation for class IntList
+// claims they are immutable.
+// This implementation of class IntList is flawed: it
+// performs representation exposure.`,
+  expression: ''
+}, {
+  title: 'IntList - flawed impl. (repr. exposure 2)',
+  declarations:
+`/**
+ * Each instance of this class represents a sequence of int values.
+ *
+ * @immutable
+ */
+public class IntList {
+
+  /** @invar | elements != null */
+  private int[] elements;
+
+  /**
+   * @post | result != null
+   * @creates | result
+   */
+  public int[] getElements() {
+    return this.elements; // FLAW: REPRESENTATION EXPOSURE!
+  }
+
+  /**
+   * @pre | 0 <= index && index < getElements().length
+   * @post | result == getElements()[index]
+   */
+  public int getElementAt(int index) {
+    return this.elements[index];
+  }
+
+  /**
+   * @pre | elements != null
+   * @post | Arrays.equals(getElements(), elements)
+   */
+  public IntList(int[] elements) {
+    this.elements = elements.clone();
+  }
+}`,
+  statements:
+`int[] myInts = {10, 20, 30};
+IntList myIntList = new IntList(myInts);
+assert myIntList.getElementAt(0) == 10;
+
+myInts[0] = 11;
+assert myIntList.getElementAt(0) == 10; // Succeeds!
+
+int[] yourInts = myIntList.getElements();
+yourInts[0] = 12;
+assert myIntList.getElementAt(0) == 10; // Fails!
+// IntList objects are not immutable,
+// even though the documentation for class IntList
+// claims they are immutable.
+// This implementation of class IntList is flawed: it
+// performs representation exposure.`,
+  expression: ''
+}, {
+  title: 'IntList - correct impl.',
+  declarations:
+`/**
+ * Each instance of this class represents a sequence of int values.
+ *
+ * @immutable
+ */
+public class IntList {
+
+  /** @invar | elements != null */
+  private int[] elements;
+
+  /**
+   * @post | result != null
+   * @creates | result
+   */
+  public int[] getElements() {
+    return this.elements.clone();
+  }
+
+  /**
+   * @pre | 0 <= index && index < getElements().length
+   * @post | result == getElements()[index]
+   */
+  public int getElementAt(int index) {
+    return this.elements[index];
+  }
+
+  /**
+   * @pre | elements != null
+   * @post | Arrays.equals(getElements(), elements)
+   */
+  public IntList(int[] elements) {
+    this.elements = elements.clone();
+  }
+}`,
+  statements:
+`int[] myInts = {10, 20, 30};
+IntList myIntList = new IntList(myInts);
+assert myIntList.getElementAt(0) == 10;
+
+myInts[0] = 11;
+assert myIntList.getElementAt(0) == 10; // Succeeds!
+
+int[] yourInts = myIntList.getElements();
+yourInts[0] = 12;
+assert myIntList.getElementAt(0) == 10; // Succeeds!
+// IntList objects are immutable.
+// This implementation of class IntList complies with
+// its documentation. It prevents
+// representation exposure.`,
+  expression: ''
+}];
+
+regularExamples = [{
+  title: 'Factorial',
   declarations:
 `/** @pre x is positive */
 int fac(int x) {
@@ -2651,6 +2966,8 @@ assert copied.next != first.next;
 assert copied.next.value == first.next.value;`,
   expression: ''
 }]
+
+examples = inModularMode ? modularExamples : regularExamples;
 
 function setExample(example) {
   reset();
