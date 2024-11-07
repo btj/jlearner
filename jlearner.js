@@ -617,7 +617,15 @@ function createHeapObjectDOMNode(object) {
   titleCell.colSpan = 2;
   titleCell.className = 'object-title-td';
   titleCell.innerText = object.toString();
-  for (let field in object.fields) {
+  updateHeapObjectDOMNode(node, object.fields);
+  return node;
+}
+
+function updateHeapObjectDOMNode(node, fields) {
+  while (node.lastChild != node.firstChild)
+    node.removeChild(node.lastChild);
+
+  for (let field in fields) {
     let fieldRow = document.createElement('tr');
     node.appendChild(fieldRow);
     let nameCell = document.createElement('td');
@@ -627,15 +635,22 @@ function createHeapObjectDOMNode(object) {
     let valueCell = document.createElement('td');
     fieldRow.appendChild(valueCell);
     valueCell.className = 'field-value';
-    valueCell.innerText = object.fields[field].value;
-    object.fields[field].valueCell = valueCell;
+    valueCell.innerText = fields[field].value;
+    fields[field].valueCell = valueCell;
   }
-  return node;
 }
 
 function updateFieldArrows() {
   for (let o of objectsShown)
     o.updateFieldArrows();
+}
+
+async function setObjectsViewMode(abstract) {
+  for (let o of objectsShown)
+    o.setViewMode(abstract);
+  if (abstract)
+    for (let o of objectsShown)
+      await o.updateAbstractFields();
 }
 
 class FieldBinding {
@@ -699,6 +714,11 @@ class JavaObject {
     for (let field in this.fields)
       this.fields[field].updateArrow();
   }
+
+  setViewMode(abstract) {
+  }
+
+  updateAbstractFields() {}
 }
 
 function initialClassFieldBindings(class_) {
@@ -712,6 +732,27 @@ class JavaClassObject extends JavaObject {
   constructor(class_) {
     super(class_.type, initialClassFieldBindings(class_));
     this.class_ = class_;
+    this.abstractViewMode = false;
+    this.abstractFields = {};
+    for (const [methodName, method] of Object.entries(this.class_.methods)) {
+      if (method.parameterDeclarations.length == 0 && method.name.startsWith('get'))
+        this.abstractFields[method.name + '()'] = new FieldBinding(null);
+    }
+  }
+
+  setViewMode(abstract) {
+    this.abstractViewMode = abstract;
+    updateHeapObjectDOMNode(this.domNode, abstract ? this.abstractFields : this.fields);
+  }
+
+  async updateAbstractFields() {
+    for (const [methodName, method] of Object.entries(this.class_.methods)) {
+      if (method.parameterDeclarations.length == 0 && method.name.startsWith('get')) {
+        await method.call(undefined, [], this);
+        const result = pop(1);
+        this.abstractFields[method.name + '()'].setValue(result);
+      }
+    }
   }
 }
 
@@ -1204,6 +1245,9 @@ class BlockStatement extends Statement {
 let iterationCount = 0;
 let maxIterationCount = new URLSearchParams(window.location.search).get('maxIterationCount') || 1000;
 const inModularMode = new URLSearchParams(window.location.search).get('modular') != null;
+
+if (inModularMode)
+  document.getElementById('abstractViewSpan').style.display = 'inline';
 
 class WhileStatement extends Statement {
   constructor(loc, instrLoc, condition, body) {
@@ -2618,6 +2662,38 @@ function updateButtonStates() {
 }
 
 modularExamples = [{
+  title: 'Interval',
+  declarations:
+`public class Interval {
+  
+  private int lowerBound;
+  private int length;
+
+  public int getLowerBound() {
+    return this.lowerBound;
+  }
+
+  public int getLength() {
+    return this.length;
+  }
+
+  public int getUpperBound() {
+    return this.lowerBound + this.length;
+  }
+  
+  public Interval(int lowerBound, int length) {
+      this.lowerBound = lowerBound;
+      this.length = length;
+  }
+
+}`,
+  statements:
+`Interval myInterval = new Interval(3, 4);
+assert myInterval.getLowerBound() == 3;
+assert myInterval.getLength() == 4;
+assert myInterval.getUpperBound() == 7;`,
+  expression: 'myInterval.getUpperBound()'
+}, {
   title: 'IntList - flawed impl. (repr. exposure 1)',
   declarations:
 `/**
