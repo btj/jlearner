@@ -2294,6 +2294,10 @@ function setCodeViewMode(abstract) {
   }
 }
 
+function isInAbstractViewMode() {
+  return document.getElementById('abstractViewCheckbox').checked;
+}
+
 function setViewMode(abstract) {
   handleError(async () => {
     setCodeViewMode(abstract);
@@ -2638,7 +2642,7 @@ let resumeFunc = null;
 
 function checkBreakpoint(node) {
   return new Promise((resolve, reject) => {
-    if (currentBreakCondition(node)) {
+    if ((!isInAbstractViewMode() || callStack.length <= 1) && currentBreakCondition(node)) {
       currentNode = node;
       currentBreakCondition = null;
       currentInstructionMark = markLoc(node.instrLoc, "current-instruction");
