@@ -1345,12 +1345,13 @@ class ParameterDeclaration extends Declaration {
 let maxCallStackDepth = 100;
 
 class MethodDeclaration extends Declaration {
-  constructor(loc, returnType, nameLoc, name, parameterDeclarations, bodyBlock) {
+  constructor(loc, returnType, nameLoc, name, parameterDeclarations, bodyLoc, bodyBlock) {
     super(loc);
     this.returnType = returnType;
     this.nameLoc = nameLoc;
     this.name = name;
     this.parameterDeclarations = parameterDeclarations;
+    this.bodyLoc = bodyLoc;
     this.bodyBlock = bodyBlock;
     let closeBraceLoc = {doc: loc.doc, start: loc.end - 1, end: loc.end};
     this.implicitReturnStmt = new ReturnStatement(closeBraceLoc, closeBraceLoc);
@@ -1409,8 +1410,8 @@ class MethodDeclaration extends Declaration {
 }
 
 class ConstructorDeclaration extends MethodDeclaration {
-  constructor(loc, nameLoc, name, parameterDeclarations, bodyBlock) {
-    super(loc, new LiteralTypeExpression(loc, voidType), nameLoc, name, parameterDeclarations, bodyBlock);
+  constructor(loc, nameLoc, name, parameterDeclarations, bodyLoc, bodyBlock) {
+    super(loc, new LiteralTypeExpression(loc, voidType), nameLoc, name, parameterDeclarations, bodyLoc, bodyBlock);
   }
 }
 
@@ -2123,10 +2124,12 @@ class Parser {
           if (this.token == '(' && type instanceof ClassTypeExpression) {
             let nameLoc = this.dupLoc();
             let parameters = this.parseParameterList();
+            this.pushStart();
             this.expect('{');
             let body = this.parseStatements({'}': true, 'EOF': true});
             this.expect('}');
-            return new ConstructorDeclaration(this.popLoc(), nameLoc, type.name, parameters, body);
+            const bodyLoc = this.popLoc();
+            return new ConstructorDeclaration(this.popLoc(), nameLoc, type.name, parameters, bodyLoc, body);
           }
           if (this.token != 'IDENT')
             if (this.token == 'TYPE_IDENT')
@@ -2138,10 +2141,12 @@ class Parser {
           let nameLoc = this.popLoc();
           if (this.token == '(') {
             let parameters = this.parseParameterList();
+            this.pushStart();
             this.expect('{');
             let body = this.parseStatements({'}': true, 'EOF': true});
             this.expect('}');
-            return new MethodDeclaration(this.popLoc(), type, nameLoc, x, parameters, body);
+            const bodyLoc = this.popLoc();
+            return new MethodDeclaration(this.popLoc(), type, nameLoc, x, parameters, bodyLoc, body);
           }
           if (this.token == '=')
             this.parseError("Field initializers are not (yet) supported by JLearner.");
@@ -2208,10 +2213,12 @@ class Parser {
           let name = this.expect('IDENT');
           let nameLoc = this.popLoc();
           let parameters = this.parseParameterList();
+          this.pushStart();
           this.expect('{');
           let body = this.parseStatements({'}': true, 'EOF': true});
           this.expect('}');
-          return new MethodDeclaration(this.popLoc(), type, nameLoc, name, parameters, body);
+          const bodyLoc = this.popLoc();
+          return new MethodDeclaration(this.popLoc(), type, nameLoc, name, parameters, bodyLoc, body);
       }
     }
   }
@@ -2227,6 +2234,39 @@ class Parser {
 let lastCheckedDeclarations = null;
 let classes;
 let toplevelMethods;
+
+let undoAbstractCodeView = null;
+
+function setCodeViewMode(abstract) {
+  if (abstract) {
+    try {
+      parseDeclarations();
+      const marks = [];
+      for (const [methodName, method] of Object.entries(toplevelMethods)) {
+        const bodyLoc = method.bodyLoc;
+        const {start, end} = getTextCoordsFromLoc(bodyLoc);
+        const mark = bodyLoc.doc.markText(start, end, {collapsed: true});
+        marks.push(mark);
+      }
+      undoAbstractCodeView = () => {
+        undoAbstractCodeView = null;
+        for (const mark of marks) mark.clear();
+      };
+    } catch (e) {
+      document.getElementById('abstractViewCheckbox').checked = false;
+      throw e;
+    }
+  } else {
+    undoAbstractCodeView();
+  }
+}
+
+function setViewMode(abstract) {
+  handleError(async () => {
+    setCodeViewMode(abstract);
+    await setObjectsViewMode(abstract);
+  });
+}
 
 function checkDeclarations(declarations) {
   classes = {};
@@ -2430,11 +2470,18 @@ function getTextCoordsFromOffset(text, offset) {
   let lineStart = 0;
   for (;;) {
     let nextBreak = text.indexOf('\n', lineStart);
-    if (nextBreak < 0 || offset < nextBreak)
+    if (nextBreak < 0 || offset <= nextBreak)
       return {line, ch: offset - lineStart};
     line++;
     lineStart = nextBreak + 1;
   }
+}
+
+function getTextCoordsFromLoc(loc) {
+  const text = loc.doc.getValue();
+  const start = getTextCoordsFromOffset(text, loc.start);
+  const end = getTextCoordsFromOffset(text, loc.end);
+  return {start, end};
 }
 
 let errorWidgets = [];
@@ -2662,6 +2709,25 @@ function updateButtonStates() {
 }
 
 modularExamples = [{
+  title: 'squareRoot',
+  declarations:
+`/**
+ * @pre | 0 <= x
+ * @post | 0 <= result
+ * @post | result * result <= x
+ * @post | x < (result + 1) * (result + 1)
+ */
+int sqrt(int x) {
+  int result = 0;
+  while ((result + 1) * (result + 1) <= x)
+    result++;
+  return result;
+}`,
+  statements:
+`assert sqrt(9) == 3;
+assert sqrt(10) == 3;`,
+  expression: `sqrt(0)`
+}, {
   title: 'Interval',
   declarations:
 `public class Interval {
@@ -3041,7 +3107,7 @@ assert copied.value == first.value;
 assert copied.next != first.next;
 assert copied.next.value == first.next.value;`,
   expression: ''
-}]
+}];
 
 examples = inModularMode ? modularExamples : regularExamples;
 

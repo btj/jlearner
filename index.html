@@ -39,7 +39,7 @@
     <table width="100%"><tr><td width="*1"><h1>JLearner</h1></td><td style="text-align: center">Examples: <select id="examples"></select></td><td style="text-align: right"><a href="https://btj.github.io/jlearner/exercises.html">Exercises</a>&nbsp;&nbsp;&nbsp;<a href="https://btj.github.io/jlearner/java_vs_python.html">Java vs Python</a>&nbsp;&nbsp;&nbsp;<a href="https://btj.github.io/jlearner/language.html">Language Specification</a></td></tr></table>
     <table width="100%" style="table-layout: fixed"><tr>
     <td width="50%" style="vertical-align: top">
-      <p><b>Declarations:</b> <span id="abstractViewSpan" style="display: none"><input type="checkbox" onchange="setObjectsViewMode(this.checked)">Abstract view</input></span></p>
+      <p><b>Declarations:</b> <span id="abstractViewSpan" style="display: none"><input id="abstractViewCheckbox" type="checkbox" onchange="setViewMode(this.checked)">Abstract view</input></span></p>
       <p><textarea id="declarations"></textarea></p>
       <p><b>Statements:</b>
         <button id="executeButton" onClick="executeStatements(false)">Execute (Ctrl+Enter)</button>
