@@ -645,12 +645,16 @@ function updateFieldArrows() {
     o.updateFieldArrows();
 }
 
+async function updateAbstractFields() {
+  for (let o of objectsShown)
+    await o.updateAbstractFields();
+}
+
 async function setObjectsViewMode(abstract) {
   for (let o of objectsShown)
     o.setViewMode(abstract);
   if (abstract)
-    for (let o of objectsShown)
-      await o.updateAbstractFields();
+    await updateAbstractFields();
 }
 
 class FieldBinding {
@@ -665,7 +669,7 @@ class FieldBinding {
       this.arrow = null;
     }
     this.value = value;
-    if (value instanceof JavaObject) {
+    if (value instanceof JavaObject && !isInAbstractViewMode()) {
       this.arrow = createArrow(this.valueCell, value.domNode);
       this.valueCell.innerText = "()";
       this.valueCell.style.color = "white";
@@ -738,6 +742,8 @@ class JavaClassObject extends JavaObject {
       if (method.parameterDeclarations.length == 0 && method.name.startsWith('get'))
         this.abstractFields[method.name + '()'] = new FieldBinding(null);
     }
+    if (isInAbstractViewMode())
+      this.setViewMode(true);
   }
 
   setViewMode(abstract) {
@@ -2652,6 +2658,8 @@ function checkBreakpoint(node) {
         resolve();
       };
       updateMachineView();
+      if (isInAbstractViewMode())
+        updateAbstractFields();
     } else {
       resolve();
     }
@@ -2785,8 +2793,20 @@ assert sqrt(10) == 3;`,
   }
   
   public Interval(int lowerBound, int length) {
-      this.lowerBound = lowerBound;
-      this.length = length;
+    this.lowerBound = lowerBound;
+    this.length = length;
+  }
+
+  public void setLowerBound(int newLowerBound) {
+    this.lowerBound = newLowerBound;
+  }
+
+  public void setLength(int newLength) {
+    this.length = newLength;
+  }
+
+  public void setUpperBound(int newUpperBound) {
+    this.length = newUpperBound - this.lowerBound;
   }
 
 }`,
@@ -2794,7 +2814,9 @@ assert sqrt(10) == 3;`,
 `Interval myInterval = new Interval(3, 4);
 assert myInterval.getLowerBound() == 3;
 assert myInterval.getLength() == 4;
-assert myInterval.getUpperBound() == 7;`,
+assert myInterval.getUpperBound() == 7;
+myInterval.setUpperBound(9);
+assert myInterval.getLength() == 6;`,
   expression: 'myInterval.getUpperBound()'
 }, {
   title: 'IntList - flawed impl. (repr. exposure 1)',
@@ -3153,6 +3175,8 @@ function setExample(example) {
   declarationsEditor.setValue(example.declarations || "");
   statementsEditor.setValue(example.statements || "");
   expressionEditor.setValue(example.expression || "");
+  if (isInAbstractViewMode())
+    setViewMode(true);
 }
 
 setExample(examples[0]);
