@@ -1344,9 +1344,17 @@ class ParameterDeclaration extends Declaration {
 
 let maxCallStackDepth = 100;
 
-class MethodDeclaration extends Declaration {
-  constructor(loc, returnType, nameLoc, name, parameterDeclarations, bodyLoc, bodyBlock) {
+class ClassMemberDeclaration extends Declaration {
+  constructor(loc, locIncludingLeadingWhitespace, isPrivate) {
     super(loc);
+    this.locIncludingLeadingWhitespace = locIncludingLeadingWhitespace;
+    this.isPrivate = isPrivate;
+  }
+}
+
+class MethodDeclaration extends ClassMemberDeclaration {
+  constructor(loc, locIncludingLeadingWhitespace, isPrivate, returnType, nameLoc, name, parameterDeclarations, bodyLoc, bodyBlock) {
+    super(loc, locIncludingLeadingWhitespace, isPrivate);
     this.returnType = returnType;
     this.nameLoc = nameLoc;
     this.name = name;
@@ -1410,14 +1418,14 @@ class MethodDeclaration extends Declaration {
 }
 
 class ConstructorDeclaration extends MethodDeclaration {
-  constructor(loc, nameLoc, name, parameterDeclarations, bodyLoc, bodyBlock) {
-    super(loc, new LiteralTypeExpression(loc, voidType), nameLoc, name, parameterDeclarations, bodyLoc, bodyBlock);
+  constructor(loc, locIncludingLeadingWhitespace, isPrivate, nameLoc, name, parameterDeclarations, bodyLoc, bodyBlock) {
+    super(loc, locIncludingLeadingWhitespace, isPrivate, new LiteralTypeExpression(loc, voidType), nameLoc, name, parameterDeclarations, bodyLoc, bodyBlock);
   }
 }
 
-class FieldDeclaration extends Declaration {
-  constructor(loc, type, name) {
-    super(loc);
+class FieldDeclaration extends ClassMemberDeclaration {
+  constructor(loc, locIncludingLeadingWhitespace, isPrivate, type, name) {
+    super(loc, locIncludingLeadingWhitespace, isPrivate);
     this.type = type;
     this.name = name;
   }
@@ -1502,8 +1510,13 @@ class Parser {
   constructor(doc, text) {
     this.doc = doc;
     this.scanner = new Scanner(doc, text);
+    this.lastPos = 0;
     this.token = this.scanner.nextToken();
     this.posStack = [];
+  }
+
+  pushStartIncludingLeadingWhitespace() {
+    this.posStack.push(this.lastPos);
   }
 
   pushStart() {
@@ -2104,6 +2117,7 @@ class Parser {
   }
   
   parseClassMemberDeclaration() {
+    this.pushStartIncludingLeadingWhitespace();
     this.pushStart();
     let accessibility = null;
     for (;;) {
@@ -2129,7 +2143,7 @@ class Parser {
             let body = this.parseStatements({'}': true, 'EOF': true});
             this.expect('}');
             const bodyLoc = this.popLoc();
-            return new ConstructorDeclaration(this.popLoc(), nameLoc, type.name, parameters, bodyLoc, body);
+            return new ConstructorDeclaration(this.popLoc(), this.popLoc(), accessibility === 'private', nameLoc, type.name, parameters, bodyLoc, body);
           }
           if (this.token != 'IDENT')
             if (this.token == 'TYPE_IDENT')
@@ -2146,12 +2160,12 @@ class Parser {
             let body = this.parseStatements({'}': true, 'EOF': true});
             this.expect('}');
             const bodyLoc = this.popLoc();
-            return new MethodDeclaration(this.popLoc(), type, nameLoc, x, parameters, bodyLoc, body);
+            return new MethodDeclaration(this.popLoc(), this.popLoc(), accessibility === 'private', type, nameLoc, x, parameters, bodyLoc, body);
           }
           if (this.token == '=')
             this.parseError("Field initializers are not (yet) supported by JLearner.");
           this.expect(';');
-          return new FieldDeclaration(this.popLoc(), type, x);
+          return new FieldDeclaration(this.popLoc(), this.popLoc(), accessibility === 'private', type, x);
       }
     }
   }
@@ -2182,6 +2196,7 @@ class Parser {
   }
   
   parseDeclaration() {
+    this.pushStartIncludingLeadingWhitespace();
     this.pushStart();
     let accessibility = null;
     for (;;) {
@@ -2200,7 +2215,9 @@ class Parser {
           while (this.token != '}')
             members.push(this.parseClassMemberDeclaration());
           this.expect('}');
-          return new Class(this.popLoc(), x, members);
+          const loc = this.popLoc();
+          this.popLoc();
+          return new Class(loc, x, members);
         default:
           // Parse method
           let type = this.parseType();
@@ -2218,7 +2235,7 @@ class Parser {
           let body = this.parseStatements({'}': true, 'EOF': true});
           this.expect('}');
           const bodyLoc = this.popLoc();
-          return new MethodDeclaration(this.popLoc(), type, nameLoc, name, parameters, bodyLoc, body);
+          return new MethodDeclaration(this.popLoc(), this.popLoc(), false, type, nameLoc, name, parameters, bodyLoc, body);
       }
     }
   }
@@ -2242,11 +2259,27 @@ function setCodeViewMode(abstract) {
     try {
       parseDeclarations();
       const marks = [];
-      for (const [methodName, method] of Object.entries(toplevelMethods)) {
-        const bodyLoc = method.bodyLoc;
-        const {start, end} = getTextCoordsFromLoc(bodyLoc);
-        const mark = bodyLoc.doc.markText(start, end, {collapsed: true});
+      function collapseLoc(loc) {
+        const {start, end} = getTextCoordsFromLoc(loc);
+        const mark = loc.doc.markText(start, end, {collapsed: true});
         marks.push(mark);
+      }
+      for (const [methodName, method] of Object.entries(toplevelMethods))
+        collapseLoc(method.bodyLoc);
+      for (const [className, class_] of Object.entries(classes)) {
+        for (const [fieldName, field] of Object.entries(class_.fields))
+          if (field.isPrivate)
+            collapseLoc(field.locIncludingLeadingWhitespace);
+        if (class_.ctor)
+          if (class_.ctor.isPrivate)
+            collapseLoc(class_.ctor.locIncludingLeadingWhitespace);
+          else
+            collapseLoc(class_.ctor.bodyLoc);
+        for (const [methodBody, method] of Object.entries(class_.methods))
+          if (method.isPrivate)
+            collapseLoc(method.locIncludingLeadingWhitespace);
+          else
+            collapseLoc(method.bodyLoc);
       }
       undoAbstractCodeView = () => {
         undoAbstractCodeView = null;
