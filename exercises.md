@@ -31,7 +31,7 @@ Note: some later exercises build on earlier ones, so keep your solutions.
 - Declare a method that computes the average (rounded toward zero) between two given integers (Note: in Java, if `x` and `y` are of type `int`, `x / y` is the quotient of `x` and `y`, rounded toward zero.)
 - Declare a method that computes `x` to the power of `y`, for nonnegative `y` (iterative implementation)
 - Declare a method that computes `x` to the power of `y`, for nonnegative `y` (recursive implementation)
-- Declare a method that computes the square root (rounded down) of a given nonnegative integer. (Find the largest integer whose square is not greater than the given number. So: start at zero and check if the square of the next bigger integer would be greater than the given number. If so, you have found the square root, rounded down. If not, try the next bigger integer.)
+- Declare a method that computes the square root (rounded down) of a given nonnegative integer. (Find the largest integer whose square is not greater than the given number, by simply trying all integers, starting from zero, and going up. So: start at zero and check if the square of the next bigger integer would be greater than the given number. If so, you have found the square root, rounded down. If not, try the next bigger integer.)
 
 ## Arrays
 
