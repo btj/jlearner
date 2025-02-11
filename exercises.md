@@ -3,7 +3,9 @@
 For each exercise, write some `assert` statements that check that your solution works correctly. For example:
 - Declarations:
   ```java
-  int sum(int x, int y) { return x + y; }
+  int sum(int x, int y) {
+    return x + y;
+  }
   ```
 - Statements:
   ```java
