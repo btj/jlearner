@@ -3016,6 +3016,86 @@ myInterval.setLowerBound(4);
 assert myInterval.getLength() == 6;`,
   expression: 'myInterval.getUpperBound()'
 }, {
+  title: 'TimeOfDay (impl 1)',
+  declarations:
+`public class TimeOfDay {
+  
+  private int hours;
+  private int minutes;
+
+  public int getHours() {
+    return this.hours;
+  }
+
+  public int getMinutes() {
+    return this.minutes;
+  }
+
+  public TimeOfDay(int hours, int minutes) {
+    this.hours = hours;
+    this.minutes = minutes;
+  }
+
+  public void setHours(int hours) {
+    this.hours = hours;
+  }
+
+  public void setMinutes(int minutes) {
+    this.minutes = minutes;
+  }
+
+}`,
+  statements:
+`TimeOfDay myTimeOfDay = new TimeOfDay(10, 30);
+assert myTimeOfDay.getHours() == 10;
+assert myTimeOfDay.getMinutes() == 30;
+myTimeOfDay.setHours(11);
+assert myTimeOfDay.getHours() == 11;
+assert myTimeOfDay.getMinutes() == 30;
+myTimeOfDay.setMinutes(45);
+assert myTimeOfDay.getHours() == 11;
+assert myTimeOfDay.getMinutes() == 45;`,
+  expression: 'myTimeOfDay.getHours()'
+}, {
+  title: 'TimeOfDay (impl 2)',
+  declarations:
+`public class TimeOfDay {
+  
+  private int minutesSinceMidnight;
+
+  public int getHours() {
+    return this.minutesSinceMidnight / 60;
+  }
+
+  public int getMinutes() {
+    return this.minutesSinceMidnight % 60;
+  }
+
+  public TimeOfDay(int hours, int minutes) {
+    this.minutesSinceMidnight = hours * 60 + minutes;
+  }
+
+  public void setHours(int hours) {
+    this.minutesSinceMidnight = hours * 60 + this.minutesSinceMidnight % 60;
+  }
+
+  public void setMinutes(int minutes) {
+    this.minutesSinceMidnight += minutes - this.minutesSinceMidnight % 60;
+  }
+
+}`,
+  statements:
+`TimeOfDay myTimeOfDay = new TimeOfDay(10, 30);
+assert myTimeOfDay.getHours() == 10;
+assert myTimeOfDay.getMinutes() == 30;
+myTimeOfDay.setHours(11);
+assert myTimeOfDay.getHours() == 11;
+assert myTimeOfDay.getMinutes() == 30;
+myTimeOfDay.setMinutes(45);
+assert myTimeOfDay.getHours() == 11;
+assert myTimeOfDay.getMinutes() == 45;`,
+  expression: 'myTimeOfDay.getHours()'
+}, {
   title: 'IntList - flawed impl. (repr. exposure 1)',
   declarations:
 `/**
