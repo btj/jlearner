@@ -2754,8 +2754,9 @@ function checkBreakpoint(node) {
         resolve();
       };
       updateMachineView();
-      if (isInAbstractViewMode())
-        updateAbstractFields();
+      if (isInAbstractViewMode()) {
+        updateAbstractFields().then(() => updateMachineView());
+      }
     } else {
       resolve();
     }
