@@ -574,6 +574,25 @@ function collectGarbage() {
   objectsShown = newObjectsShown;
 }
 
+/**
+ * Hides all objects not reachable from the stack via getter calls (not field accesses).
+ */
+function hideRepresentationObjects() {
+  if (!isInAbstractViewMode()) {
+    for (let o of objectsShown)
+      o.setVisible(true);
+  } else {
+    for (let o of objectsShown)
+      o.marked = false;
+    for (let stackFrame of callStack)
+      for (let binding of stackFrame.allBindings())
+        if (binding.value instanceof JavaObject)
+          binding.value.markAbstractly();
+    for (let o of objectsShown)
+      o.setVisible(o.marked);
+  }
+}
+
 function computeNextObjectY() {
   let svg = document.getElementById('arrows-svg');
   let svgRect = svg.getClientRects()[0];
@@ -660,6 +679,8 @@ async function setObjectsViewMode(abstract) {
     o.setViewMode(abstract);
   if (abstract)
     await updateAbstractFields();
+  updateMachineView();
+  hideRepresentationObjects();
 }
 
 class FieldBinding {
@@ -675,9 +696,9 @@ class FieldBinding {
     }
     this.value = value;
     if (value instanceof JavaObject && !isInAbstractViewMode()) {
-      this.arrow = createArrow(this.valueCell, value.domNode);
       this.valueCell.innerText = "()";
       this.valueCell.style.color = "white";
+      this.arrow = createArrow(this.valueCell, value.domNode);
     } else {
       this.valueCell.innerText = value == null ? "null" : value;
       this.valueCell.style.color = "black";
@@ -712,6 +733,20 @@ class JavaObject {
       }
     }
   }
+
+  getAbstractFields() { return this.fields; }
+  
+  markAbstractly() {
+    if (!this.marked) {
+      this.marked = true;
+      const abstractFields = this.getAbstractFields();
+      for (let field in abstractFields) {
+        let value = abstractFields[field].value;
+        if (value instanceof JavaObject)
+          value.markAbstractly();
+      }
+    }
+  }
   
   hide() {
     this.domNode.parentNode.removeChild(this.domNode);
@@ -731,6 +766,10 @@ class JavaObject {
 
   getAbstractState() {
     return "(object abstract state)"; // TODO
+  }
+
+  setVisible(visible) {
+    this.domNode.style.visibility = visible ? 'visible' : 'hidden';
   }
 }
 
@@ -753,6 +792,10 @@ class JavaClassObject extends JavaObject {
     }
     if (isInAbstractViewMode())
       this.setViewMode(true);
+  }
+
+  getAbstractFields() {
+    return this.abstractViewMode ? this.abstractFields : this.fields;
   }
 
   setViewMode(abstract) {
@@ -2755,7 +2798,7 @@ function checkBreakpoint(node) {
       };
       updateMachineView();
       if (isInAbstractViewMode()) {
-        updateAbstractFields().then(() => updateMachineView());
+        updateAbstractFields().then(() => { updateMachineView(); hideRepresentationObjects(); });
       }
     } else {
       resolve();
