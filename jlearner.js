@@ -3200,7 +3200,7 @@ assert myIntList.getElementAt(0) == 10; // Fails!
 // performs representation exposure.`,
   expression: ''
 }, {
-  title: 'IntList - correct impl.',
+  title: 'IntList - correct impl. 1',
   declarations:
 `/**
  * Each instance of this class represents a sequence of int values.
@@ -3236,6 +3236,90 @@ public class IntList {
     this.elements = elements.clone();
   }
 }`,
+  statements:
+`int[] myInts = {10, 20, 30};
+IntList myIntList = new IntList(myInts);
+assert myIntList.getElementAt(0) == 10;
+
+myInts[0] = 11;
+assert myIntList.getElementAt(0) == 10; // Succeeds!
+
+int[] yourInts = myIntList.getElements();
+yourInts[0] = 12;
+assert myIntList.getElementAt(0) == 10; // Succeeds!
+// IntList objects are immutable.
+// This implementation of class IntList complies with
+// its documentation. It prevents
+// representation exposure.`,
+  expression: ''
+}, {
+  title: 'IntList - correct impl. 2',
+  declarations:
+`/**
+ * Each instance of this class represents a sequence of int values.
+ *
+ * @immutable
+ */
+public class IntList {
+
+  private Node elements;
+
+  /**
+   * @post | result != null
+   * @creates | result
+   */
+  public int[] getElements() {
+    int[] result = new int[length(this.elements)];
+    Node n = this.elements;
+    for (int i = 0; i < result.length; i++) {
+      result[i] = n.value;
+      n = n.next;
+    }
+    return result;
+  }
+
+  /**
+   * @pre | 0 <= index && index < getElements().length
+   * @post | result == getElements()[index]
+   */
+  public int getElementAt(int index) {
+    Node n = this.elements;
+    while (index > 0) {
+      n = n.next;
+      index--;
+    }
+    return n.value;
+  }
+
+  /**
+   * @pre | elements != null
+   * @post | Arrays.equals(getElements(), elements)
+   */
+  public IntList(int[] elements) {
+    for (int i = elements.length - 1; 0 <= i; i--)
+      this.elements = new Node(elements[i], this.elements);
+  }
+}
+  
+class Node {
+  int value;
+  Node next;
+
+  Node(int value, Node next) {
+    this.value = value;
+    this.next = next;
+  }
+}
+
+int length(Node n) {
+    int result = 0;
+    while (n != null) {
+        result++;
+        n = n.next;
+    }
+    return result;
+}
+`,
   statements:
 `int[] myInts = {10, 20, 30};
 IntList myIntList = new IntList(myInts);
