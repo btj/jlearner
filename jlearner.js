@@ -2913,7 +2913,7 @@ int sqrt(int x) {
 assert sqrt(10) == 3;`,
   expression: `sqrt(0)`
 }, {
-  title: 'Interval',
+  title: 'Interval (impl 1)',
   declarations:
 `public class Interval {
   
@@ -2937,6 +2937,9 @@ assert sqrt(10) == 3;`,
     this.length = length;
   }
 
+  /**
+   * @post | getLength() == old(getLength())
+   */
   public void setLowerBound(int newLowerBound) {
     this.lowerBound = newLowerBound;
   }
@@ -2956,6 +2959,60 @@ assert myInterval.getLowerBound() == 3;
 assert myInterval.getLength() == 4;
 assert myInterval.getUpperBound() == 7;
 myInterval.setUpperBound(9);
+assert myInterval.getLength() == 6;
+myInterval.setLowerBound(4);
+assert myInterval.getLength() == 6;`,
+  expression: 'myInterval.getUpperBound()'
+}, {
+  title: 'Interval (impl 2)',
+  declarations:
+`public class Interval {
+  
+  private int lowerBound;
+  private int upperBound;
+
+  public int getLowerBound() {
+    return this.lowerBound;
+  }
+
+  public int getLength() {
+    return this.upperBound - this.lowerBound;
+  }
+
+  public int getUpperBound() {
+    return this.upperBound;
+  }
+  
+  public Interval(int lowerBound, int length) {
+    this.lowerBound = lowerBound;
+    this.upperBound = lowerBound + length;
+  }
+
+  /**
+   * @post | getLength() == old(getLength())
+   */
+  public void setLowerBound(int newLowerBound) {
+    this.upperBound = newLowerBound + (this.upperBound - this.lowerBound);
+    this.lowerBound = newLowerBound;
+  }
+
+  public void setLength(int newLength) {
+    this.upperBound = this.lowerBound + newLength;
+  }
+
+  public void setUpperBound(int newUpperBound) {
+    this.upperBound = newUpperBound;
+  }
+
+}`,
+  statements:
+`Interval myInterval = new Interval(3, 4);
+assert myInterval.getLowerBound() == 3;
+assert myInterval.getLength() == 4;
+assert myInterval.getUpperBound() == 7;
+myInterval.setUpperBound(9);
+assert myInterval.getLength() == 6;
+myInterval.setLowerBound(4);
 assert myInterval.getLength() == 6;`,
   expression: 'myInterval.getUpperBound()'
 }, {
