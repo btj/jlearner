@@ -64,6 +64,7 @@ class Scanner {
   }
 
   nextToken() {
+    let javadoc = null;
     eatWhite:
     for (;;) {
       switch (this.c) {
@@ -90,10 +91,13 @@ class Scanner {
               case '*':
                 this.eat();
                 this.eat();
+                const isJavadoc = this.c == '*' && this.pos + 1 < this.text.length && this.text.charAt(this.pos + 1) != '/';
                 for (;;) {
                   if (this.c == '<EOF>')
                     throw new LocError({doc: this.doc, start: commentStart, end: this.pos}, "Missing terminator for multiline comment");
                   else if (this.c == '*' && this.pos + 1 < this.text.length && this.text.charAt(this.pos + 1) == '/') {
+                    if (isJavadoc)
+                      javadoc = {doc: this.doc, start: commentStart + 3, end: this.pos};
                     this.eat();
                     this.eat();
                     continue eatWhite;
@@ -109,6 +113,7 @@ class Scanner {
           break eatWhite;
       }
     }
+    this.javadoc = javadoc;
     this.tokenStart = this.pos;
     this.tokenIsOnNewLine = this.isOnNewLine;
     this.isOnNewLine = false;
@@ -723,6 +728,10 @@ class JavaObject {
   }
 
   updateAbstractFields() {}
+
+  getAbstractState() {
+    return "(object abstract state)"; // TODO
+  }
 }
 
 function initialClassFieldBindings(class_) {
@@ -755,7 +764,10 @@ class JavaClassObject extends JavaObject {
     for (const [methodName, method] of Object.entries(this.class_.methods)) {
       if (method.parameterDeclarations.length == 0 && method.name.startsWith('get')) {
         await method.call(undefined, [], this);
-        const result = pop(1);
+        let [result] = pop(1);
+        if (method.createsResult() && result instanceof JavaObject) {
+          result = result.getAbstractState();
+        }
         this.abstractFields[method.name + '()'].setValue(result);
       }
     }
@@ -773,6 +785,13 @@ class JavaArrayObject extends JavaObject {
   constructor(elementType, initialContents) {
     super(new ArrayType(elementType), initialArrayFieldBindings(initialContents));
     this.length = initialContents.length;
+  }
+
+  getAbstractState() {
+    const elems = [];
+    for (let i = 0; i < this.length; i++)
+      elems.push(this.fields[i].value);
+    return elems.join(", ");
   }
 }
 
@@ -1351,16 +1370,82 @@ class ParameterDeclaration extends Declaration {
 let maxCallStackDepth = 100;
 
 class ClassMemberDeclaration extends Declaration {
-  constructor(loc, locIncludingLeadingWhitespace, isPrivate) {
+  constructor(loc, locIncludingLeadingWhitespace, javadoc, isPrivate) {
     super(loc);
     this.locIncludingLeadingWhitespace = locIncludingLeadingWhitespace;
+    this.javadoc = javadoc;
     this.isPrivate = isPrivate;
   }
 }
 
+function parseJavadoc({doc, start, end}) {
+  const text = doc.getValue();
+  let pos = start;
+  const result = {}; // Maps a tag name to a list of the formal parts
+  // Look for the first tag
+  for (;;) {
+    if (pos == end)
+      return result;
+    switch (text.charAt(pos)) {
+      case ' ': pos++; break;
+      case '\t': pos++; break;
+      case '*': pos++; break;
+      case '\n': pos++; break;
+      case '@': {
+        pos++;
+      
+        while (text.charAt(pos) == ' ')
+          pos++;
+        const startOfTagName = pos;
+        while (isAlpha(text.charAt(pos)) || isDigit(text.charAt(pos)))
+          pos++;
+        const tagName = text.substring(startOfTagName, pos);
+        const formalPartLines = [];
+        let atStartOfLine = false;
+        parseTagBody:
+        for (;;) {
+          if (pos == end)
+            break;
+          switch (text.charAt(pos)) {
+            case '\n':
+              pos++;
+              atStartOfLine = true;
+              break;
+            case ' ':
+            case '\t':
+            case '*':
+                pos++; break;
+            case '|':
+              pos++;
+              const startOfFormalPartLine = pos;
+              while (pos < end && text.charAt(pos) != '\n')
+                pos++;
+              formalPartLines.push(text.substring(startOfFormalPartLine, pos));
+              break;
+            case '@': if (atStartOfLine) break parseTagBody;
+              // Fall through
+            default:
+              atStartOfLine = false;
+              pos++;
+              break;
+          }
+        }
+        if (!result[tagName])
+          result[tagName] = [];
+        result[tagName].push(formalPartLines.map(line => line.trim()).join(" "));
+        break;
+      }
+      default:
+        while (pos < end && text.charAt(pos) != '\n')
+          pos++;
+        break;
+    }
+  }
+}
+
 class MethodDeclaration extends ClassMemberDeclaration {
-  constructor(loc, locIncludingLeadingWhitespace, isPrivate, returnType, nameLoc, name, parameterDeclarations, bodyLoc, bodyBlock) {
-    super(loc, locIncludingLeadingWhitespace, isPrivate);
+  constructor(loc, locIncludingLeadingWhitespace, javadoc, isPrivate, returnType, nameLoc, name, parameterDeclarations, bodyLoc, bodyBlock) {
+    super(loc, locIncludingLeadingWhitespace, javadoc, isPrivate);
     this.returnType = returnType;
     this.nameLoc = nameLoc;
     this.name = name;
@@ -1369,6 +1454,15 @@ class MethodDeclaration extends ClassMemberDeclaration {
     this.bodyBlock = bodyBlock;
     let closeBraceLoc = {doc: loc.doc, start: loc.end - 1, end: loc.end};
     this.implicitReturnStmt = new ReturnStatement(closeBraceLoc, closeBraceLoc);
+  }
+
+  createsResult() {
+    if (!this.javadoc)
+      return false;
+    if (!this.parsedJavadoc)
+      this.parsedJavadoc = parseJavadoc(this.javadoc);
+    const createsClauses = this.parsedJavadoc.creates;
+    return createsClauses && createsClauses[0] == 'result';
   }
 
   enter(receiverClass) {
@@ -1424,14 +1518,14 @@ class MethodDeclaration extends ClassMemberDeclaration {
 }
 
 class ConstructorDeclaration extends MethodDeclaration {
-  constructor(loc, locIncludingLeadingWhitespace, isPrivate, nameLoc, name, parameterDeclarations, bodyLoc, bodyBlock) {
-    super(loc, locIncludingLeadingWhitespace, isPrivate, new LiteralTypeExpression(loc, voidType), nameLoc, name, parameterDeclarations, bodyLoc, bodyBlock);
+  constructor(loc, locIncludingLeadingWhitespace, javadoc, isPrivate, nameLoc, name, parameterDeclarations, bodyLoc, bodyBlock) {
+    super(loc, locIncludingLeadingWhitespace, javadoc, isPrivate, new LiteralTypeExpression(loc, voidType), nameLoc, name, parameterDeclarations, bodyLoc, bodyBlock);
   }
 }
 
 class FieldDeclaration extends ClassMemberDeclaration {
-  constructor(loc, locIncludingLeadingWhitespace, isPrivate, type, name) {
-    super(loc, locIncludingLeadingWhitespace, isPrivate);
+  constructor(loc, locIncludingLeadingWhitespace, javadoc, isPrivate, type, name) {
+    super(loc, locIncludingLeadingWhitespace, javadoc, isPrivate);
     this.type = type;
     this.name = name;
   }
@@ -2125,6 +2219,7 @@ class Parser {
   parseClassMemberDeclaration() {
     this.pushStartIncludingLeadingWhitespace();
     this.pushStart();
+    const javadoc = this.scanner.javadoc;
     let accessibility = null;
     for (;;) {
       switch (this.token) {
@@ -2149,7 +2244,7 @@ class Parser {
             let body = this.parseStatements({'}': true, 'EOF': true});
             this.expect('}');
             const bodyLoc = this.popLoc();
-            return new ConstructorDeclaration(this.popLoc(), this.popLoc(), accessibility === 'private', nameLoc, type.name, parameters, bodyLoc, body);
+            return new ConstructorDeclaration(this.popLoc(), this.popLoc(), javadoc, accessibility === 'private', nameLoc, type.name, parameters, bodyLoc, body);
           }
           if (this.token != 'IDENT')
             if (this.token == 'TYPE_IDENT')
@@ -2166,12 +2261,12 @@ class Parser {
             let body = this.parseStatements({'}': true, 'EOF': true});
             this.expect('}');
             const bodyLoc = this.popLoc();
-            return new MethodDeclaration(this.popLoc(), this.popLoc(), accessibility === 'private', type, nameLoc, x, parameters, bodyLoc, body);
+            return new MethodDeclaration(this.popLoc(), this.popLoc(), javadoc, accessibility === 'private', type, nameLoc, x, parameters, bodyLoc, body);
           }
           if (this.token == '=')
             this.parseError("Field initializers are not (yet) supported by JLearner.");
           this.expect(';');
-          return new FieldDeclaration(this.popLoc(), this.popLoc(), accessibility === 'private', type, x);
+          return new FieldDeclaration(this.popLoc(), this.popLoc(), javadoc, accessibility === 'private', type, x);
       }
     }
   }
@@ -2204,6 +2299,7 @@ class Parser {
   parseDeclaration() {
     this.pushStartIncludingLeadingWhitespace();
     this.pushStart();
+    let javadoc = this.scanner.javadoc;
     let accessibility = null;
     for (;;) {
       switch (this.token) {
@@ -2241,7 +2337,7 @@ class Parser {
           let body = this.parseStatements({'}': true, 'EOF': true});
           this.expect('}');
           const bodyLoc = this.popLoc();
-          return new MethodDeclaration(this.popLoc(), this.popLoc(), false, type, nameLoc, name, parameters, bodyLoc, body);
+          return new MethodDeclaration(this.popLoc(), this.popLoc(), javadoc, false, type, nameLoc, name, parameters, bodyLoc, body);
       }
     }
   }
