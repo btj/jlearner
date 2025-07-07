@@ -30,7 +30,11 @@ Note: some later exercises build on earlier ones, so keep your solutions.
 
 ## Methods, loops
 
-- Declare a method that computes the average (rounded toward zero) between two given integers (Note: in Java, if `x` and `y` are of type `int`, `x / y` is the quotient of `x` and `y`, rounded toward zero.)
+- Declare a method that computes the sum of three given integers.
+- Declare a method that computes the average (rounded toward zero) of two given integers (Note: in Java, if `x` and `y` are of type `int`, `x / y` is the quotient of `x` and `y`, rounded toward zero.)
+- Declare a method that computes the absolute value of a given integer.
+- Declare a method that computes the minimum of two given integers.
+- Declare a method that computes the minimum of three given integers.
 - Declare a method that computes `x` to the power of `y`, for nonnegative `y` (iterative implementation)
 - Declare a method that computes `x` to the power of `y`, for nonnegative `y` (recursive implementation)
 - Declare a method that computes the square root (rounded down) of a given nonnegative integer. (Find the largest integer whose square is not greater than the given number, by simply trying all integers, starting from zero, and going up. So: start at zero and check if the square of the next bigger integer would be greater than the given number. If so, you have found the square root, rounded down. If not, try the next bigger integer.)
@@ -56,12 +60,41 @@ A person is a sibling of another person if they are either a brother or a sister
 - Declare a class such that an object of this class can be used to store the age and the next oldest sibling of a person. (That is, declare a class `Person` with a field `age` and a field `nextOldestSibling`.) (The next oldest sibling of a person is the oldest sibling of that person that is younger than that person.) If a person has no younger siblings, store `null` in the corresponding `nextOldestSibling` field.
 - Declare a method that counts the number of younger siblings of some person, given a `Person` object corresponding to that person (iterative implementation).
 - Declare a method that counts the number of younger siblings of some person, given a `Person` object corresponding to that person (recursive implementation).
+- Declare a method that returns an array containing the younger siblings of some person, given a `Person` object corresponding to that person (iterative implementation).
 - Declare a method that counts the number of adult younger siblings of a some person, given a `Person` object corresponding to that person  (iterative implementation).
 - Declare a method that counts the number of adult younger siblings of a some person, given a `Person` object corresponding to that person  (recursive implementation).
 - Declare a method that increments the age stored for some person, as well the ages stored for the person's younger siblings by one, given a `Person` object corresponding to that person (iterative implementation).
 - Declare a method that increments the age stored for some person, as well the ages stored for the person's younger siblings by one, given a `Person` object corresponding to that person (recursive implementation).
 - Declare a method that updates the `Person` object corresponding to the youngest sibling of some person _p_ to reflect the fact that a new sibling (age 0) was born, given a `Person` object corresponding to person _p_ (iterative implementation).
 - Declare a method that updates the `Person` object corresponding to the youngest sibling of some person _p_ to reflect the fact that a new sibling (age 0) was born, given a `Person` object corresponding to person _p_ (recursive implementation).
+
+## Arrays of vectors
+
+- Declare a method that, given an array of vectors, returns the sum of the vectors (i.e. a vector whose X coordinate is the sum of the X coordinates of the given vectors, and whose Y coordinate is the sum of the Y coordinates of the given vectors).
+- Declare a method that, given an X value and an array of vectors, returns the Y coordinate of some vector in the array whose X value equals the given X value, or 0 if there is no such vector in the array.
+- Declare a method that, given an array of vectors, returns a new array that contains the same `Vector` objects, but in reverse order. That is, the last element of the given array should be the first element of the returned array, etc. Do not modify the given array or the vectors.
+- Declare a method that, given an array of vectors, reverses it in-place. That is, swap the first and the last vector, the second and the second-but-last, etc. This method shall not return anything; it should be a `void` method.
+- Declare a method that, given a vector and an array of vectors, replaces each vector in the array whose X and Y coordinates are equal to those of the given vector by the given vector.
+
+## Marriage
+
+- Declare a class Person with a field `spouse` that can refer to a Person object.
+- Declare a method that, given a Person object and an array of Person objects, returns the number of occurrences of the given Person object in the array.
+- Declare a method that, given an array of Person objects, checks that no Person object occurs more than once in this array.
+- Declare a method that, given an array of Person objects, checks for every person P in the array that if P is married to P', then P' is in the array and is married to P, and no person is married to themselves.
+- Declare a method that, given an array of Person objects, replaces each married person in the array by their spouse. Check that applying this method to an array twice restores the array to its original state.
+- Declare a method that, given an array of an even number of distinct Person objects (i.e. no Person object occurs more than once in the array), marries all unmarried persons.
+
+## One-way streets
+
+- Declare a class `Crossroads` with a field `outgoingRoads` that can point to an array of `Crossroads` objects.
+- Declare a method that, given a Crossroads object and an array of N Crossroads objects, returns an array of length N+1 that contains the elements of the given array followed by the given Crossroads object.
+- Declare a method that, given an integer N and two `Crossroads` objects, checks whether the second Crossroads object can be reached from the first Crossroads object by following an outgoing road at most N times. In other words, check whether there is a path of length at most N that starts at the first Crossroads object and ends at the second Crossroads object. (Hint: use recursion.)
+- Declare a method that, given an integer N and a `Crossroads` object, checks whether the given Crossroads object can be reached from itself by following an outgoing road at most N times. In other words, check whether there is a path of length at least 1 and at most N that starts and ends at the given Crossroads.
+- Declare a method that, given a Crossroads object, returns an array of Crossroads objects that contains each Crossroads object reachable from the given Crossroads object (including the given Crossroads object itself) exactly once. (Hint: use recursion.)
+- Declare a method that checks that a given array of Crossroads objects is *closed*, meaning that any Crossroads object reachable from an object in the array is also in the array.
+- Declare a method that, given a *closed* array of Crossroads objects, returns an array of Crossroads objects representing the *inverted* road network. That is, the returned array shall be such that, for every pair of indices I and J, if the Crossroads object at index I in the original array has an outgoing road to the Crossroads object at index J in the original array, then the Crossroads object at index J in the returned array shall have an outgoing road to the Crossroads object at index I in the returned array.
+- Declare a method that, given two Crossroads objects, checks that the two road networks reachable from them are *isomorphic*. This means that for each Crossroads object reachable from the first given Crossroads object, there exists a corresponding Crossroads object reachable from the second given Crossroads object such that if a Crossroads object O reachable from the first given Crossroads object has an outgoing road to some Crossroads object O', then the object corresponding to O has an outgoing road to the object corresponding to O', and vice versa.
 
 ## Sorting
 
